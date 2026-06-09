@@ -1,0 +1,20 @@
+# Output / generated
+output/
+output-edited/
+*.xlsx
+
+# Cache
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Evidence / tracking
+.sisyphus/evidence/
+.sisyphus/boulder.json
+
+# System
+Thumbs.db
+desktop.ini
+
+# Keep test fixture
+!test_fixture.xlsx
