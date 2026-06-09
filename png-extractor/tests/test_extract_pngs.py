@@ -16,7 +16,10 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from src.naming import col_letter, sanitize, build_filename, get_label
+from src.naming import (
+    col_letter, sanitize, build_filename, get_label,
+    parse_prefix, get_label_with_row, build_pw_filename,
+)
 from src.config import load_config
 
 # ── Paths ─────────────────────────────────────────────────────────────────
@@ -164,6 +167,49 @@ class TestNaming:
         assert result == "Inline Label"
 
 
+    # ── New naming tests ─────────────────────────────────────────────────
+
+    def test_parse_prefix_exist(self):
+        result = parse_prefix("exist bkk101")
+        assert result == ("exist", "bkk101")
+
+    def test_parse_prefix_new(self):
+        result = parse_prefix("New BKK999")
+        assert result == ("new", "BKK999")
+
+    def test_parse_prefix_none(self):
+        assert parse_prefix("Summary") is None
+        assert parse_prefix("PW bkk007") is None
+
+    def test_parse_prefix_edge_cases(self):
+        # "exist"/"new" alone — no whitespace, no site — returns None
+        assert parse_prefix("exist") is None
+        assert parse_prefix("new") is None
+        assert parse_prefix("EXIST site_a") == ("exist", "site_a")
+
+    def test_build_pw_filename(self):
+        result = build_pw_filename("bkk007", "exist", "bkk101", "My Label")
+        assert result == "PW bkk007_exist bkk101_My Label.png"
+
+    def test_build_pw_filename_new(self):
+        result = build_pw_filename("bkk007", "new", "bkk999", "Test Label")
+        assert result == "PW bkk007_new bkk999_Test Label.png"
+
+    def test_get_label_with_row(self):
+        ws = MagicMock()
+        ws.cell.return_value.value = "Hello"
+        result = get_label_with_row(ws, 2, 1)
+        # anchor_row=2 (0-indexed) → openpyxl anchor row is 3
+        # label found at openpyxl row 2 (one row above anchor)
+        assert result == ("Hello", 2)
+
+    def test_get_label_with_row_none(self):
+        ws = MagicMock()
+        ws.cell.return_value.value = None
+        result = get_label_with_row(ws, 0, 0)
+        assert result is None
+
+
 # ── TestConfig ────────────────────────────────────────────────────────────
 
 
@@ -211,19 +257,36 @@ class TestConfig:
 class TestIntegration:
     """Integration tests for the full extract_pngs.py pipeline."""
 
-    def test_extract_fixture_output(self, tmp_path):
+    def test_extract_fixture_output_new_naming(self, tmp_path):
+        """Integration test: new naming format with PW/exist/new sheets.
+
+        Uses the real fixture but renames sheets to match the new convention.
+        Sheet names: "PW test", "exist site1", "new site2", "Summary".
+        """
+        import openpyxl
+
         # ── Setup temp directories ─────────────────────────────────────
         in_dir = tmp_path / "input"
         out_dir = tmp_path / "output"
         in_dir.mkdir()
 
         # Copy fixture into input dir
-        shutil.copy2(FIXTURE, in_dir / "test_fixture.xlsx")
+        fixture_copy = in_dir / "test_fixture.xlsx"
+        shutil.copy2(FIXTURE, fixture_copy)
+
+        # Rename sheets to match new convention
+        wb = openpyxl.load_workbook(fixture_copy)
+        wb.worksheets[0].title = "PW test"          # planwork sheet (skipped by prefix filter)
+        wb.worksheets[1].title = "exist site1"       # extracted with "exist" prefix
+        wb.worksheets[2].title = "new site2"         # extracted with "new" prefix
+        wb.create_sheet("Summary")                   # skipped (no exist/new prefix)
+        wb.save(str(fixture_copy))
+        wb.close()
 
         # Create config with absolute paths
         config_file = tmp_path / "config.json"
         config_file.write_text(
-            '{{"input_folder": "{}", "output_folder": "{}"}}'.format(
+            '{{"input_folder": "{}", "output_folder": "{}", "noise_threshold": 500}}'.format(
                 in_dir.as_posix(), out_dir.as_posix()
             )
         )
@@ -251,18 +314,22 @@ class TestIntegration:
                 f"STDOUT: {result.stdout}"
             )
 
-            # ── Verify expected output files ───────────────────────────────
-            expected_files = [
-                "Sales_Revenue Chart.png",
-                "Sales_Growth Trend.png",
-                "Empty_row5_colB.png",
-                "Edge_row1_colA.png",
-                "Edge_Deep Label.png",
-            ]
-            for fname in expected_files:
-                fpath = out_dir / fname
-                assert fpath.exists(), f"Missing output file: {fname}"
-                assert fpath.stat().st_size > 0, f"Empty output file: {fname}"
+            # ── Verify output files match new naming format ────────────────
+            # Fixture has labels only in "Edge" (now "new site2") sheet:
+            #   B10="Deep Label" → extracted as PW test_new site2_row10.png
+            # Images without labels are skipped (new behavior).
+            output_files = sorted(out_dir.iterdir())
+            assert len(output_files) == 1, (
+                f"Expected 1 output file, got {len(output_files)}: "
+                f"{[f.name for f in output_files]}"
+            )
+
+            fpath = output_files[0]
+            name = fpath.name
+            assert fpath.stat().st_size > 0, f"Empty output file: {name}"
+            assert name == "PW test_new site2_Deep Label.png", (
+                f"Unexpected filename: {name}"
+            )
         finally:
             if script_config.exists():
                 script_config.unlink()

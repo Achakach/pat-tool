@@ -3,7 +3,7 @@ import zipfile
 import sys
 
 
-def extract_images(xlsx_path: Path, output_dir: Path) -> int:
+def extract_images(xlsx_path: Path, output_dir: Path, noise_threshold: int = 5000) -> int:
     """Extract PNG images from an XLSX file's /xl/media/ directory.
 
     Args:
@@ -29,7 +29,7 @@ def extract_images(xlsx_path: Path, output_dir: Path) -> int:
 
                     with zf.open(name) as src:
                         data = src.read()
-                    if len(data) < 500:
+                    if len(data) < noise_threshold:
                         continue  # skip noise/spacer images
                     with open(out_path, "wb") as dst:
                         dst.write(data)

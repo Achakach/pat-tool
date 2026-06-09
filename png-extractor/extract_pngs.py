@@ -16,6 +16,7 @@ Orchestrates image extraction by:
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 import zipfile
@@ -24,7 +25,7 @@ import xml.etree.ElementTree as ET
 import openpyxl
 
 from src.config import load_config
-from src.naming import get_label, build_filename
+from src.naming import get_label_with_row, build_pw_filename, parse_prefix
 
 # ── OpenXML namespaces ──────────────────────────────────────────────────
 # These are well-known, stable URIs within the OOXML spec.
@@ -164,6 +165,7 @@ def main():
     config = load_config(str(config_path))
     input_folder = Path(config["input_folder"])
     output_folder = Path(config["output_folder"])
+    noise_threshold = config.get("noise_threshold", 5000)
 
     # ── Validate input folder ────────────────────────────────────────
     if not input_folder.is_dir():
@@ -192,10 +194,29 @@ def main():
             print(f"  ERROR: Cannot open workbook — {exc}", file=sys.stderr)
             continue
 
+        # Scan for PW sheet to get planwork value
+        planwork = None
+        for ws in wb.worksheets:
+            m = re.match(r'^PW\s+(.+)', ws.title, re.IGNORECASE)
+            if m:
+                planwork = m.group(1).strip()
+                break
+        if planwork is None:
+            print(f"  WARNING: No PW sheet found — skipping {xlsx_path.name}", file=sys.stderr)
+            wb.close()
+            continue
+
         try:
             with zipfile.ZipFile(xlsx_path, "r") as zf:
+                seen_images: set[tuple[str, str]] = set()
                 for sheet_idx, ws in enumerate(wb.worksheets, start=1):
                     sheet_name = ws.title
+
+                    # Skip sheets without exist/new prefix
+                    parsed = parse_prefix(sheet_name)
+                    if parsed is None:
+                        continue
+                    prefix, site = parsed
 
                     drawing_path = _find_drawing_path(zf, sheet_idx)
                     if drawing_path is None or drawing_path not in zf.namelist():
@@ -206,13 +227,12 @@ def main():
                         continue
 
                     for (anchor_row, anchor_col), zip_path in image_map.items():
-                        label = get_label(ws, anchor_row, anchor_col)
-                        filename = build_filename(
-                            sheet_name,
-                            label,
-                            anchor_row,
-                            anchor_col,
-                        )
+                        result = get_label_with_row(ws, anchor_row, anchor_col)
+                        if result is None:
+                            continue  # no label found, skip this image
+                        label_text, label_row = result
+
+                        filename = build_pw_filename(planwork, prefix, site, label_text)
 
                         # Handle duplicate filenames by appending _1, _2, …
                         out_path = output_folder / filename
@@ -228,10 +248,13 @@ def main():
                                 counter += 1
 
                         try:
+                            if (zip_path, filename) in seen_images:
+                                continue
                             with zf.open(zip_path) as src:
                                 data = src.read()
-                            if len(data) < 500:
+                            if len(data) < noise_threshold:
                                 continue  # skip noise/spacer images
+                            seen_images.add((zip_path, filename))
                             with open(out_path, "wb") as dst:
                                 dst.write(data)
                             total_images += 1

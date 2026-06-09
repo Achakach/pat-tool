@@ -34,4 +34,6 @@ def load_config(path: str) -> dict:
         print("Invalid config: missing 'input_folder' or 'output_folder'", file=sys.stderr)
         sys.exit(1)
 
-    return {"input_folder": input_folder, "output_folder": output_folder}
+    cfg["input_folder"] = input_folder
+    cfg["output_folder"] = output_folder
+    return cfg
