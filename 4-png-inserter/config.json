@@ -11,5 +11,6 @@
   "insert_gap_rows": 1,
   "image_insert_col": "C",
   "page_break_before_label": false,
-  "image_display_width": 400
+  "image_display_width": 400,
+  "a4_page_rows": 54
 }

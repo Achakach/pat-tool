@@ -78,10 +78,21 @@ def _setup_a4_print(ws):
 def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
                label: str, start_row: int, merge_to_col: str | None = None,
                gap_rows: int = 1, col: str = "A",
-               display_width: int | None = None) -> int:
+               display_width: int | None = None,
+               page_rows: int | None = None) -> int:
     """Insert label + PNG. Returns next available row."""
     wb = load_workbook(str(xlsx_path))
     ws = wb[sheet_name]
+
+    # Read PNG dimensions
+    with open(png_path, 'rb') as f:
+        f.read(16)
+        w, h = struct.unpack('>II', f.read(8))
+
+    # One site per page: push to next page (unless first site on fresh sheet)
+    if page_rows and start_row > page_rows:
+        page_end = ((start_row - 1) // page_rows + 1) * page_rows
+        start_row = page_end + 1
 
     # Label row
     label_cell = ws.cell(row=start_row, column=1)
@@ -94,11 +105,6 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
     if merge_to_col:
         ws.merge_cells(f"A{start_row}:{merge_to_col}{start_row}")
 
-    # Read PNG dimensions
-    with open(png_path, 'rb') as f:
-        f.read(16)
-        w, h = struct.unpack('>II', f.read(8))
-
     # Scale image to display_width (if configured)
     img = XlImage(str(png_path))
     if display_width:
@@ -109,13 +115,13 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
     else:
         display_h = h
 
-    # Insert image (offset by gap)
-    img_row = start_row + 1 + gap_rows  # label + gap + image
-    ws.add_image(img, f"{col}{img_row}")
-
     # Count rows this image needs (pixels → points → rows)
     default_ht = 15
     rows_needed = max(1, int(display_h * 0.75 / default_ht) + 1)
+
+    # Insert image (offset by gap)
+    img_row = start_row + 1 + gap_rows  # label + gap + image
+    ws.add_image(img, f"{col}{img_row}")
 
     wb.save(str(xlsx_path))
     wb.close()
@@ -124,7 +130,8 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
 
 def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
                          start_row: int, gap_rows: int = 1, col: str = "A",
-                         display_width: int | None = None) -> int:
+                         display_width: int | None = None,
+                         page_rows: int | None = None) -> int:
     """Insert PNG without label row. Returns next available row."""
     wb = load_workbook(str(xlsx_path))
     ws = wb[sheet_name]
@@ -142,9 +149,16 @@ def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
     else:
         display_h = h
 
+    rows_needed = max(1, int(display_h * 0.75 / 15) + 1)
+
+    # Push to next page if image crosses page boundary
+    if page_rows:
+        page_end = ((start_row // page_rows) + 1) * page_rows
+        if start_row + gap_rows + rows_needed > page_end:
+            start_row = page_end + 1  # push to next page
+
     img_row = start_row + gap_rows
     ws.add_image(img, f"{col}{img_row}")
-    rows_needed = max(1, int(display_h * 0.75 / 15) + 1)
     wb.save(str(xlsx_path))
     wb.close()
     return img_row + rows_needed + gap_rows

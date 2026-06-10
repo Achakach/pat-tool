@@ -65,6 +65,7 @@ def main():
     gap_rows = config.get("insert_gap_rows", 1)
     img_col = config.get("image_insert_col", "A")
     display_width = config.get("image_display_width")
+    page_rows = config.get("a4_page_rows")
 
     total_inserted = 0
     total_files = 0
@@ -183,10 +184,10 @@ def main():
             # Insert label (site name) + PNG, or just PNG if already labeled
             site = extract_site(png.name)
             if (site, sheet_name) not in labeled:
-                next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width)
+                next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows)
                 labeled.add((site, sheet_name))
             else:
-                next_row = insert_png_no_label(output_path, sheet_name, png, current_row, gap_rows, col=img_col, display_width=display_width)
+                next_row = insert_png_no_label(output_path, sheet_name, png, current_row, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows)
 
             sheet_rows[sheet_name] = next_row
 
