@@ -1,0 +1,8 @@
+{
+  "matching_file": "../matching.xlsx",
+  "matching_sheet": "match",
+  "filename_col": "Site",
+  "planwork_col": "PW Number",
+  "template": "./template.xlsx",
+  "output_folder": "./output"
+}

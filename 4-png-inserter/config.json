@@ -1,0 +1,15 @@
+{
+  "matching_file": "../matching.xlsx",
+  "matching_sheet": "match",
+  "filename_col": "Site",
+  "planwork_col": "PW Number",
+  "xlsx_folder": "./xlsx",
+  "png_folder": "./input",
+  "output_folder": "./output",
+  "purge_from_row": 10,
+  "label_merge_to_col": "K",
+  "insert_gap_rows": 1,
+  "image_insert_col": "C",
+  "page_break_before_label": false,
+  "image_display_width": 400
+}
