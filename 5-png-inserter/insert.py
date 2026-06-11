@@ -67,6 +67,11 @@ def main():
     display_width = config.get("image_display_width")
     page_rows = config.get("a4_page_rows")
     title_rows = config.get("print_title_rows")
+    header_count = 0
+    if title_rows:
+        parts = title_rows.split(":")
+        if len(parts) == 2:
+            header_count = int(parts[1]) - int(parts[0]) + 1
 
     total_inserted = 0
     total_files = 0
@@ -188,19 +193,13 @@ def main():
                 # Push to next page boundary for subsequent sites on same sheet
                 if page_rows and any(s[1] == sheet_name for s in labeled):
                     current_row = sheet_rows[sheet_name]
-                    # First site uses full page_rows, subsequent use usable (minus headers)
-                    if title_rows:
-                        parts = title_rows.split(":")
-                        header_count = int(parts[1]) - int(parts[0]) + 1
-                        usable = page_rows - header_count
-                    else:
-                        usable = page_rows
+                    usable = page_rows - header_count if header_count else page_rows
                     page_end = ((current_row - 1) // usable + 1) * usable
                     current_row = page_end + 1
-                next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width)
+                next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows, header_count=header_count)
                 labeled.add((site, sheet_name))
             else:
-                next_row = insert_png_no_label(output_path, sheet_name, png, current_row, gap_rows, col=img_col, display_width=display_width)
+                next_row = insert_png_no_label(output_path, sheet_name, png, current_row, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows, header_count=header_count)
 
             sheet_rows[sheet_name] = next_row
 
