@@ -81,8 +81,7 @@ def _setup_a4_print(ws, print_title_rows=None):
 def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
                label: str, start_row: int, merge_to_col: str | None = None,
                gap_rows: int = 1, col: str = "A",
-               display_width: int | None = None,
-               page_rows: int | None = None) -> int:
+               display_width: int | None = None) -> int:
     """Insert label + PNG. Returns next available row."""
     wb = load_workbook(str(xlsx_path))
     ws = wb[sheet_name]
@@ -91,13 +90,6 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
     with open(png_path, 'rb') as f:
         f.read(16)
         w, h = struct.unpack('>II', f.read(8))
-
-    # Page boundary check — push to next page if image would overflow
-    if page_rows:
-        est_rows = max(1, int(h * 0.75 / 15) + 1)
-        page_end = ((start_row - 1) // page_rows + 1) * page_rows
-        if start_row + 1 + gap_rows + est_rows > page_end:
-            start_row = page_end + 1
 
     # Label row
     label_cell = ws.cell(row=start_row, column=1)
@@ -139,21 +131,13 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
 
 def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
                          start_row: int, gap_rows: int = 1, col: str = "A",
-                         display_width: int | None = None,
-                         page_rows: int | None = None) -> int:
+                         display_width: int | None = None) -> int:
     """Insert PNG without label row. Returns next available row."""
     wb = load_workbook(str(xlsx_path))
     ws = wb[sheet_name]
     with open(png_path, 'rb') as f:
         f.read(16)
         w, h = struct.unpack('>II', f.read(8))
-
-    # Page boundary check — push to next page if image would overflow
-    if page_rows:
-        est_rows = max(1, int(h * 0.75 / 15) + 1)
-        page_end = ((start_row - 1) // page_rows + 1) * page_rows
-        if start_row + 1 + gap_rows + est_rows > page_end:
-            start_row = page_end + 1
 
     # Scale image to display_width (if configured)
     img = XlImage(str(png_path))
