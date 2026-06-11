@@ -66,6 +66,13 @@ def main():
     img_col = config.get("image_insert_col", "A")
     display_width = config.get("image_display_width")
     page_rows = config.get("a4_page_rows")
+    title_rows = config.get("print_title_rows")
+    # Parse header row count from "1:N" → N rows consumed by header
+    header_count = 0
+    if title_rows:
+        parts = title_rows.split(":")
+        if len(parts) == 2:
+            header_count = int(parts[1]) - int(parts[0]) + 1
 
     total_inserted = 0
     total_files = 0
@@ -173,7 +180,7 @@ def main():
                 purged_sheets.add(sheet_name)
                 sheet_rows[sheet_name] = purge_from
                 wb = load_workbook(str(output_path))
-                _setup_a4_print(wb[sheet_name])
+                _setup_a4_print(wb[sheet_name], print_title_rows=title_rows)
                 wb.save(str(output_path))
                 wb.close()
                 print(f"  Purged: '{sheet_name}' from row {purge_from}")
@@ -184,6 +191,12 @@ def main():
             # Insert label (site name) + PNG, or just PNG if already labeled
             site = extract_site(png.name)
             if (site, sheet_name) not in labeled:
+                # Push to next page boundary for subsequent sites on same sheet
+                if page_rows and any(s[1] == sheet_name for s in labeled):
+                    current_row = sheet_rows[sheet_name]
+                    # Next page start, accounting for title overlay rows
+                    page_start = ((current_row - 1) // page_rows + 1) * page_rows + 1
+                    current_row = page_start + (header_count if header_count else 0)
                 next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows)
                 labeled.add((site, sheet_name))
             else:
@@ -197,7 +210,6 @@ def main():
             print(f"  {gbar} | {fbar} {site} ({pw}) → '{sheet_name}'")
             inserted += 1
             global_done += 1
-
         total_inserted += inserted
 
     print(f"\nDone. Matched {total_inserted} PNGs across {total_files} files.")

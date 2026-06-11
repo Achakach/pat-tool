@@ -210,3 +210,4 @@ class TestInsertPng:
         assert ws2.cell(row=10, column=1).value == "BKK01"
         assert ws2.cell(row=10, column=1).font.bold is True
         wb2.close()
+

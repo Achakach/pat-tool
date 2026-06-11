@@ -6,6 +6,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.drawing.image import Image as XlImage
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.worksheet.pagebreak import Break
 
 
 def purge_sheet(xlsx_path: Path, sheet_name: str, from_row: int):
@@ -61,18 +62,20 @@ def find_matching_sheet(wb, label: str) -> str | None:
     return None
 
 
-def _setup_a4_print(ws):
-    """Configure sheet for A4 portrait printing."""
-    ws.page_setup.paperSize = 9  # A4
+def _setup_a4_print(ws, print_title_rows=None):
+    """Configure sheet for A4 portrait printing with auto-height flow."""
+    ws.page_setup.paperSize = 9
     ws.page_setup.orientation = 'portrait'
     ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
-    ws.sheet_properties.pageSetUpPr = ws.sheet_properties.pageSetUpPr or type('obj', (), {})()
-    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToHeight = 0  # height auto-flows
+    from openpyxl.worksheet.properties import PageSetupProperties
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
     ws.page_margins.left = 0.25
     ws.page_margins.right = 0.25
     ws.page_margins.top = 0.5
     ws.page_margins.bottom = 0.5
+    if print_title_rows:
+        ws.print_title_rows = print_title_rows
 
 
 def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
@@ -89,10 +92,12 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
         f.read(16)
         w, h = struct.unpack('>II', f.read(8))
 
-    # One site per page: push to next page (unless first site on fresh sheet)
-    if page_rows and start_row > page_rows:
+    # Page boundary check — push to next page if image would overflow
+    if page_rows:
+        est_rows = max(1, int(h * 0.75 / 15) + 1)
         page_end = ((start_row - 1) // page_rows + 1) * page_rows
-        start_row = page_end + 1
+        if start_row + 1 + gap_rows + est_rows > page_end:
+            start_row = page_end + 1
 
     # Label row
     label_cell = ws.cell(row=start_row, column=1)
@@ -100,6 +105,10 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
     label_cell.font = Font(bold=True, size=12)
     label_cell.fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
     label_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    # Page break before label (skip first site — it's at purge_from=10)
+    if start_row > 10:
+        ws.row_breaks.append(Break(id=start_row))
 
     # Merge label row cells (if configured)
     if merge_to_col:
@@ -139,6 +148,13 @@ def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
         f.read(16)
         w, h = struct.unpack('>II', f.read(8))
 
+    # Page boundary check — push to next page if image would overflow
+    if page_rows:
+        est_rows = max(1, int(h * 0.75 / 15) + 1)
+        page_end = ((start_row - 1) // page_rows + 1) * page_rows
+        if start_row + 1 + gap_rows + est_rows > page_end:
+            start_row = page_end + 1
+
     # Scale image to display_width (if configured)
     img = XlImage(str(png_path))
     if display_width:
@@ -150,12 +166,6 @@ def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
         display_h = h
 
     rows_needed = max(1, int(display_h * 0.75 / 15) + 1)
-
-    # Push to next page if image crosses page boundary
-    if page_rows:
-        page_end = ((start_row // page_rows) + 1) * page_rows
-        if start_row + gap_rows + rows_needed > page_end:
-            start_row = page_end + 1  # push to next page
 
     img_row = start_row + gap_rows
     ws.add_image(img, f"{col}{img_row}")
