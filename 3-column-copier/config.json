@@ -1,0 +1,58 @@
+{
+  "matching_file": "../matching.xlsx",
+  "matching_sheet": "match",
+  "filename_col": "Site",
+  "planwork_col": "PW Number",
+  "data_sheet": "cutsheet",
+  "target_sheet": "IP & Port Assignment",
+  "source_start_row": 3,
+  "paste_start_row": 3,
+  "columns": {
+    "PW": {
+      "type": "planwork",
+      "paste_to": "Q"
+    },
+    "IP1": {
+      "type": "ip_lookup",
+      "lookup_col": "C",
+      "log_sheet": "Get Log Before&After",
+      "paste_to": "R"
+    },
+    "IP2": {
+      "type": "ip_lookup",
+      "lookup_col": "G",
+      "log_sheet": "Get Log Before&After",
+      "paste_to": "S"
+    },
+    "NE_NO1": {
+      "type": "copy",
+      "source_col": "C",
+      "paste_to": "C"
+    },
+    "PORT_NO1": {
+      "type": "copy",
+      "source_col": "D",
+      "paste_to": "D"
+    },
+    "L1": {
+      "type": "copy",
+      "source_col": "E",
+      "paste_to": "E"
+    },
+    "NE_NO2": {
+      "type": "copy",
+      "source_col": "G",
+      "paste_to": "G"
+    },
+    "PORT_NO2": {
+      "type": "copy",
+      "source_col": "H",
+      "paste_to": "H"
+    }
+  },
+  "source_folder": "./source",
+  "target_folder": "./target",
+  "output_folder": "./output",
+  "action": "copy",
+  "paste_mode": "append"
+}

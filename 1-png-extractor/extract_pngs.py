@@ -153,6 +153,34 @@ def _parse_drawing_image_map(zf, drawing_path):
         col = int(col_el.text)
         anchors[(row, col)] = image_path
 
+    # Also handle oneCellAnchor (from ws.add_image calls)
+    for anchor in _local_findall(dr_xml.getroot(), "oneCellAnchor"):
+        blip = _local_find(anchor, "blip")
+        from_el = _local_find(anchor, "from")
+        if blip is None or from_el is None:
+            continue
+
+        r_id = blip.get(f"{{{_DOC_REL}}}embed")
+        if r_id is None:
+            r_id = blip.get(f"{{{_DOC_REL}}}link")
+        if r_id is None:
+            continue
+
+        image_path = rId_to_image.get(r_id)
+        if image_path is None:
+            continue
+
+        row_el = _local_find(from_el, "row")
+        col_el = _local_find(from_el, "col")
+        if row_el is None or col_el is None:
+            continue
+
+        row = int(row_el.text)
+        col = int(col_el.text)
+        # Don't overwrite if already captured from twoCellAnchor
+        if (row, col) not in anchors:
+            anchors[(row, col)] = image_path
+
     return anchors
 
 

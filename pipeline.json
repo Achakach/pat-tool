@@ -1,0 +1,31 @@
+{
+  "pipeline": {
+    "1-png-extractor": {
+      "command": "cd 1-png-extractor && python extract_pngs.py",
+      "copy": [
+        { "from": "1-png-extractor/output/*.png", "to": "5-png-inserter/input/" }
+      ]
+    },
+    "2-template-generator": {
+      "command": "cd 2-template-generator && python generate.py",
+      "copy": [
+        { "from": "2-template-generator/output/*.xlsx", "to": "3-column-copier/target/" }
+      ]
+    },
+    "3-column-copier": {
+      "command": "cd 3-column-copier && python copier.py",
+      "copy": [
+        { "from": "3-column-copier/output/*.xlsx", "to": "4-cell-editor/input/" }
+      ]
+    },
+    "4-cell-editor": {
+      "command": "cd 4-cell-editor && python edit.py",
+      "copy": [
+        { "from": "4-cell-editor/output/*.xlsx", "to": "5-png-inserter/xlsx/" }
+      ]
+    },
+    "5-png-inserter": {
+      "command": "cd 5-png-inserter && python insert.py"
+    }
+  }
+}
