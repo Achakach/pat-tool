@@ -495,3 +495,56 @@ class TestPrintTitleRows:
                                         gap_rows=0, page_rows=10, header_count=2)
         assert next_row > 10  # pushed past page boundary
         assert next_row >= 16
+
+    def test_full_pipeline_with_headers(self, tmp_path):
+        """Multi-sheet workbook with header_count=3 — snap + overflow + multi-sheet."""
+        xlsx_path = _make_test_xlsx(tmp_path, "integration.xlsx")
+        png1 = tmp_path / "test1.png"
+        png2 = tmp_path / "test2.png"
+        png3 = tmp_path / "test3.png"
+        _make_test_png(png1, 10, 10)
+        _make_test_png(png2, 10, 10)
+        _make_test_png(png3, 10, 10)
+
+        wb = load_workbook(str(xlsx_path))
+        wb.create_sheet("Sheet2")
+        wb.save(str(xlsx_path))
+        wb.close()
+
+        # Sheet 1: first site at purge_from → no snap (start_row == purge_from)
+        r1 = insert_png(xlsx_path, "Sheet", png1, "SiteA", 5,
+                         page_rows=10, header_count=3, purge_from=5, gap_rows=0)
+        # start_row=5 not > purge_from=5 → no snap
+        # img_end=5+1+0+1=7, page_end=10 → no overflow
+        # label@5, img@6, next=6+1+0=7
+        assert r1 == 7
+
+        # Sheet 1: no-label insert following r1 → overflow check only (no snap in no-label)
+        r2 = insert_png_no_label(xlsx_path, "Sheet", png2, r1,
+                                  page_rows=10, header_count=3, gap_rows=0)
+        # start_row=7, rows_needed=1 → img_end=7+0+1=8
+        # start_row<=page_rows → page_end=10, 8>10? NO → no push
+        # img@7, next=7+1+0=8
+        assert r2 == 8
+
+        # Sheet 1: second site after gap → snap fires (start_row > purge_from)
+        r3 = insert_png(xlsx_path, "Sheet", png3, "SiteB", 12,
+                         page_rows=10, header_count=3, purge_from=5, gap_rows=0)
+        # snap: start_row=12>5, content_rows=7, offset=12-10-2=0, pages_after=1 → page_end=18
+        # overflow: img_end=18+1+0+1=20, offset=7, pages_before=1 → page_end=24, 20>24? NO
+        # label@18, img@19, next=19+1+0=20
+        assert r3 == 20
+
+        # Sheet 2: analogous first site → no snap
+        r4 = insert_png(xlsx_path, "Sheet2", png1, "SiteC", 5,
+                         page_rows=10, header_count=3, purge_from=5, gap_rows=0)
+        assert r4 == 7
+
+        # Verify label placements across sheets
+        wb = load_workbook(str(xlsx_path))
+        ws = wb["Sheet"]
+        assert ws.cell(row=5, column=1).value == "SiteA"
+        assert ws.cell(row=18, column=1).value == "SiteB"
+        ws2 = wb["Sheet2"]
+        assert ws2.cell(row=5, column=1).value == "SiteC"
+        wb.close()
