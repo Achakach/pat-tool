@@ -18,6 +18,36 @@ def progress_bar(current, total, width=30):
     return f"{bar} {percent:3d}%"
 
 
+def _parse_print_title_rows(value, page_rows=None):
+    """Parse print_title_rows config value.
+
+    Returns (header_count, print_title_rows_str):
+        header_count: int (0 if disabled, else the end row number)
+        print_title_rows_str: str or None (None if disabled)
+    """
+    if value is None:
+        return (0, None)
+
+    if not isinstance(value, str) or ':' not in value:
+        print(f"WARNING: Invalid print_title_rows '{value}' — must be 'start:end' format. Disabled.", file=sys.stderr)
+        return (0, None)
+
+    parts = value.split(':')
+    if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+        print(f"WARNING: Invalid print_title_rows '{value}' — non-numeric parts. Disabled.", file=sys.stderr)
+        return (0, None)
+
+    start, end = int(parts[0]), int(parts[1])
+
+    if page_rows is not None:
+        content_rows = page_rows - end
+        if content_rows < 2:
+            w = max(0, content_rows)
+            print(f"WARNING: print_title_rows '{value}' leaves only {w} content row(s) per page (page_rows={page_rows}).", file=sys.stderr)
+
+    return (end, value)
+
+
 def main():
     config_path = Path(__file__).parent / "config.json"
     with open(config_path, "r", encoding="utf-8") as f:

@@ -10,8 +10,10 @@
   "label_merge_to_col": "K",
   "insert_gap_rows": 1,
   "image_insert_col": "C",
-  "page_break_before_label": false,
+  "page_break_before_label": true,
   "_comment": "Use 'a4_page_rows' to override auto-calculated A4 page capacity (null = auto-calc). Auto-calc: (841.89 - (top_margin + bottom_margin) * 72) / 15",
   "a4_page_rows": null,
+  "print_title_rows": null,
+  "_comment_print_title_rows": "Set to '1:6' to repeat rows 1-6 at top of every printed page. null = disabled.",
   "image_display_width": 300
 }

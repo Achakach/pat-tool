@@ -49,6 +49,30 @@ def _make_test_xlsx(tmp_path, name="test.xlsx"):
 
 
 # ============================================================
+# Task 2 — Print Title Rows Tests (2 tests)
+# ============================================================
+
+class TestSetupA4PrintTitleRows:
+    """Tests for _setup_a4_print print_title_rows parameter."""
+
+    def test_setup_a4_print_sets_print_title_rows(self, tmp_path):
+        """_setup_a4_print(ws, '1:6') sets ws.print_title_rows to '1:6'."""
+        wb = Workbook()
+        ws = wb.active
+        _setup_a4_print(ws, "1:6")
+        assert ws.print_title_rows == "$1:$6"
+        wb.close()
+
+    def test_setup_a4_print_none_does_not_set(self, tmp_path):
+        """_setup_a4_print(ws, None) leaves ws.print_title_rows unset."""
+        wb = Workbook()
+        ws = wb.active
+        _setup_a4_print(ws, None)
+        assert ws.print_title_rows is None
+        wb.close()
+
+
+# ============================================================
 # Task 4 — Config / Setup Tests (7 tests)
 # ============================================================
 
@@ -331,3 +355,48 @@ class TestPageBreakEdgeCases:
         _clear_page_breaks(ws)
         assert len(ws.row_breaks.brk) == 0
         wb.close()
+
+
+# ============================================================
+# Task 1 — Print Title Rows Config Parsing Tests (5 tests)
+# ============================================================
+
+class TestPrintTitleRows:
+    """Tests for _parse_print_title_rows config parsing."""
+
+    def test_parse_print_title_rows_valid(self):
+        """"1:6" → (6, "1:6") — standard valid input."""
+        from insert import _parse_print_title_rows
+        result = _parse_print_title_rows("1:6")
+        assert result == (6, "1:6")
+
+    def test_parse_print_title_rows_null(self):
+        """None → (0, None) — disabled state."""
+        from insert import _parse_print_title_rows
+        result = _parse_print_title_rows(None)
+        assert result == (0, None)
+
+    def test_parse_print_title_rows_malformed_colon_only(self, capsys):
+        """"1:" → (0, None) + stderr warning."""
+        from insert import _parse_print_title_rows
+        result = _parse_print_title_rows("1:")
+        assert result == (0, None)
+        stderr = capsys.readouterr().err
+        assert "WARNING" in stderr
+
+    def test_parse_print_title_rows_malformed_non_numeric(self, capsys):
+        """"a:b" → (0, None) + stderr warning."""
+        from insert import _parse_print_title_rows
+        result = _parse_print_title_rows("a:b")
+        assert result == (0, None)
+        stderr = capsys.readouterr().err
+        assert "WARNING" in stderr
+
+    def test_parse_print_title_rows_degenerate(self, capsys):
+        """"1:51" with page_rows=52 → (51, "1:51") + stderr warning (content_rows=1)."""
+        from insert import _parse_print_title_rows
+        result = _parse_print_title_rows("1:51", page_rows=52)
+        assert result == (51, "1:51")
+        stderr = capsys.readouterr().err
+        assert "WARNING" in stderr
+        assert "1" in stderr  # content_rows=1 mentioned in warning

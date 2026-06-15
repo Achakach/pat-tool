@@ -66,8 +66,13 @@ def find_matching_sheet(wb, label: str) -> str | None:
     return None
 
 
-def _setup_a4_print(ws):
-    """Configure sheet for A4 portrait printing."""
+def _setup_a4_print(ws, print_title_rows=None):
+    """Configure sheet for A4 portrait printing.
+    
+    Args:
+        ws: Worksheet to configure.
+        print_title_rows: Optional str like '1:6' to set as print title rows (repeat at top of every page).
+    """
     global _a4_print_setup_done
     ws.page_setup.paperSize = 9
     ws.page_setup.orientation = 'portrait'
@@ -76,8 +81,10 @@ def _setup_a4_print(ws):
     ws.page_margins.right = 0.25
     ws.page_margins.top = 0.5
     ws.page_margins.bottom = 0.5
+    if print_title_rows is not None:
+        ws.print_title_rows = print_title_rows
     if not _a4_print_setup_done:
-        print(f"[DEBUG] _setup_a4_print: setting A4 portrait, margins L=0.25 R=0.25 T=0.5 B=0.5, autoPageBreaks=False", file=sys.stderr)
+        print(f"[DEBUG] _setup_a4_print: setting A4 portrait, margins L=0.25 R=0.25 T=0.5 B=0.5, autoPageBreaks=False, print_title_rows={print_title_rows}", file=sys.stderr)
         _a4_print_setup_done = True
 
 
