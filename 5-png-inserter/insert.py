@@ -150,17 +150,9 @@ def main():
 
         total_pngs = len(valid_pngs)
         pngs = valid_pngs
-
-        # Calculate page rows for page breaks (if feature enabled)
-        if page_break_enabled:
-            wb_temp = load_workbook(str(output_path))
-            page_rows_val = _calc_page_rows(wb_temp.active, a4_page_rows_override)
-            wb_temp.close()
-        else:
-            page_rows_val = None
-
         # Purge matched sheets + insert PNGs into sheets
         purged_sheets = set()
+        sheet_page_rows = {}
         sheet_rows = {}
         labeled = set()
         inserted = 0
@@ -183,7 +175,10 @@ def main():
                 sheet_rows[sheet_name] = purge_from
                 wb = load_workbook(str(output_path))
                 _setup_a4_print(wb[sheet_name])
-                if not page_break_enabled:
+                if page_break_enabled:
+                    sheet_page_rows[sheet_name] = _calc_page_rows(wb[sheet_name], a4_page_rows_override)
+                else:
+                    sheet_page_rows[sheet_name] = None
                     _clear_page_breaks(wb[sheet_name])
                 wb.save(str(output_path))
                 wb.close()
@@ -195,15 +190,16 @@ def main():
             # Insert label (site name) + PNG, or just PNG if already labeled
             site = extract_site(png.name)
             if (site, sheet_name) not in labeled:
-                next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows_val, purge_from=(purge_from or 10))
+                next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width, page_rows=sheet_page_rows.get(sheet_name), purge_from=(purge_from or 10))
                 labeled.add((site, sheet_name))
             else:
-                next_row = insert_png_no_label(output_path, sheet_name, png, current_row, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows_val)
+                next_row = insert_png_no_label(output_path, sheet_name, png, current_row, gap_rows, col=img_col, display_width=display_width, page_rows=sheet_page_rows.get(sheet_name))
 
             sheet_rows[sheet_name] = next_row
 
-            if page_rows_val and (next_row - current_row) > page_rows_val:
-                print(f"  WARNING: Image '{png.name}' spans {next_row - current_row} rows, exceeding page capacity of {page_rows_val}", file=sys.stderr)
+            pr_val = sheet_page_rows.get(sheet_name)
+            if pr_val and (next_row - current_row) > pr_val:
+                print(f"  WARNING: Image '{png.name}' spans {next_row - current_row} rows, exceeding page capacity of {pr_val}", file=sys.stderr)
 
             pw = extract_planwork(png.name)
             gbar = progress_bar(global_done + 1, global_total)
