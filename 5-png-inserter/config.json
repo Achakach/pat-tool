@@ -13,7 +13,7 @@
   "page_break_before_label": true,
   "_comment": "Use 'a4_page_rows' to override auto-calculated A4 page capacity (null = auto-calc). Auto-calc: (841.89 - (top_margin + bottom_margin) * 72) / 15",
   "a4_page_rows": null,
-  "print_title_rows": null,
+  "print_title_rows": "1:9",
   "_comment_print_title_rows": "Set to '1:6' to repeat rows 1-6 at top of every printed page. null = disabled.",
   "image_display_width": 300
 }
