@@ -7,6 +7,7 @@ from openpyxl import load_workbook
 from openpyxl.drawing.image import Image as XlImage
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.worksheet.pagebreak import Break
+import math
 
 
 def purge_sheet(xlsx_path: Path, sheet_name: str, from_row: int):
@@ -83,7 +84,7 @@ def _calc_page_rows(ws, config_override=None):
     paper_height_pts = 841.89
     margins_pts = (float(ws.page_margins.top) + float(ws.page_margins.bottom)) * 72
     printable_pts = paper_height_pts - margins_pts
-    return int(printable_pts / 15)
+    return math.ceil(printable_pts / 15)
 
 
 def _clear_page_breaks(ws):
