@@ -111,23 +111,6 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
         f.read(16)
         w, h = struct.unpack('>II', f.read(8))
 
-    # Page break before label (skip first site on sheet)
-    if page_rows is not None and start_row > purge_from:
-        page_end = ((start_row - 2) // page_rows + 1) * page_rows + 1
-        start_row = max(start_row, page_end)
-        ws.row_breaks.append(Break(id=start_row))
-
-    # Label row (at possibly-snapped start_row)
-    label_cell = ws.cell(row=start_row, column=1)
-    label_cell.value = label
-    label_cell.font = Font(bold=True, size=12)
-    label_cell.fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
-    label_cell.alignment = Alignment(horizontal="center", vertical="center")
-
-    # Merge label row cells (if configured)
-    if merge_to_col:
-        ws.merge_cells(f"A{start_row}:{merge_to_col}{start_row}")
-
     # Scale image to display_width (if configured)
     img = XlImage(str(png_path))
     if display_width:
@@ -141,6 +124,30 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
     # Count rows this image needs (pixels → points → rows)
     default_ht = 15
     rows_needed = max(1, int(display_h * 0.75 / default_ht) + 1)
+
+    # Page break before label (skip first site on sheet)
+    if page_rows is not None and start_row > purge_from:
+        page_end = ((start_row - 2) // page_rows + 1) * page_rows + 1
+        start_row = max(start_row, page_end)
+        ws.row_breaks.append(Break(id=start_row))
+
+    # Overflow guard: if label+image group won't fit, push to next page
+    if page_rows is not None:
+        img_end = start_row + 1 + gap_rows + rows_needed
+        page_end = ((start_row - 1) // page_rows + 1) * page_rows
+        if img_end > page_end:
+            start_row = page_end + 1
+
+    # Label row (at final snapped/pushed start_row)
+    label_cell = ws.cell(row=start_row, column=1)
+    label_cell.value = label
+    label_cell.font = Font(bold=True, size=12)
+    label_cell.fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    label_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    # Merge label row cells (if configured)
+    if merge_to_col:
+        ws.merge_cells(f"A{start_row}:{merge_to_col}{start_row}")
 
     # Insert image (offset by gap)
     img_row = start_row + 1 + gap_rows  # label + gap + image

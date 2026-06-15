@@ -259,12 +259,13 @@ class TestPageBreakEdgeCases:
         # page_rows=5, image spans ~26 rows → much taller than a page
         next_row = insert_png(output, "Sheet", png, "Site1", 3, page_rows=5, purge_from=1, gap_rows=1)
         # start_row=3 > 1 → snap: ((3-2)//5+1)*5+1 = 6, snap to row 6
-        # label at 6, img at 8, rows_needed=26, return = 8+26+1 = 35
+        # overflow guard: img_end = 6+1+1+26 = 34 > page_end=10 → push to row 11
+        # label at 11, img at 13, return = 13+26+1 = 40
         assert next_row > 6  # image inserted past the page boundary
 
         wb = load_workbook(str(output))
         ws = wb["Sheet"]
-        assert ws.cell(row=6, column=1).value == "Site1"  # label at snapped row
+        assert ws.cell(row=11, column=1).value == "Site1"  # label at overflow-pushed row
         wb.close()
 
     def test_multi_sheet_independence(self, tmp_path):
