@@ -8,7 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 from openpyxl import load_workbook
 from src.matcher import read_matching, match_pngs, extract_planwork
-from src.inserter import purge_sheet, extract_label, extract_site, find_matching_sheet, insert_png, insert_png_no_label, _setup_a4_print, _calc_page_rows, _clear_page_breaks
+from src.inserter import purge_sheet, extract_label, extract_site, find_matching_sheet, insert_png, insert_png_no_label, _setup_a4_print, _calc_page_rows
 
 
 def progress_bar(current, total, width=30):
@@ -179,9 +179,11 @@ def main():
                     sheet_page_rows[sheet_name] = _calc_page_rows(wb[sheet_name], a4_page_rows_override)
                 else:
                     sheet_page_rows[sheet_name] = None
-                    _clear_page_breaks(wb[sheet_name])
+                    # autoPageBreaks=True handles break management
                 wb.save(str(output_path))
                 wb.close()
+                pr_val = sheet_page_rows.get(sheet_name)
+                print(f"[DEBUG] insert.py: sheet='{sheet_name}' purged, page_rows={pr_val} (from margins T=0.5 B=0.5)", file=sys.stderr)
                 print(f"  Purged: '{sheet_name}' from row {purge_from}")
 
             # Get current row for this sheet
@@ -190,10 +192,14 @@ def main():
             # Insert label (site name) + PNG, or just PNG if already labeled
             site = extract_site(png.name)
             if (site, sheet_name) not in labeled:
-                next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width, page_rows=sheet_page_rows.get(sheet_name), purge_from=(purge_from or 10))
+                pr_val = sheet_page_rows.get(sheet_name)
+                print(f"[DEBUG] insert.py: calling insert_png(sheet='{sheet_name}', site='{site}', current_row={current_row}, page_rows={pr_val})", file=sys.stderr)
+                next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width, page_rows=pr_val, purge_from=(purge_from or 10))
                 labeled.add((site, sheet_name))
             else:
-                next_row = insert_png_no_label(output_path, sheet_name, png, current_row, gap_rows, col=img_col, display_width=display_width, page_rows=sheet_page_rows.get(sheet_name))
+                pr_val = sheet_page_rows.get(sheet_name)
+                print(f"[DEBUG] insert.py: calling insert_png_no_label(sheet='{sheet_name}', current_row={current_row}, page_rows={pr_val})", file=sys.stderr)
+                next_row = insert_png_no_label(output_path, sheet_name, png, current_row, gap_rows, col=img_col, display_width=display_width, page_rows=pr_val)
 
             sheet_rows[sheet_name] = next_row
 

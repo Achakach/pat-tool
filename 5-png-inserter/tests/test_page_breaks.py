@@ -111,12 +111,12 @@ class TestPageBreakConfig:
         assert 49 <= result <= 53
         wb.close()
 
-    def test_auto_page_breaks_disabled(self, tmp_path):
-        """_setup_a4_print → autoPageBreaks is False."""
+    def test_auto_page_breaks_enabled(self, tmp_path):
+        """_setup_a4_print → autoPageBreaks is True."""
         wb = Workbook()
         ws = wb.active
         _setup_a4_print(ws)
-        assert ws.page_setup.autoPageBreaks is False
+        assert ws.page_setup.autoPageBreaks is True
         wb.close()
 
     def test_clear_page_breaks_empties_brk(self, tmp_path):
@@ -140,27 +140,26 @@ class TestPageBreakConfig:
 class TestPageBreakInsertion:
     """Tests for page break insertion during insert_png and insert_png_no_label."""
 
-    def test_break_before_second_site(self, tmp_path):
-        """Two sites on same sheet → break inserted before second site's label row."""
+    def test_snap_to_page_boundary(self, tmp_path):
+        """Two sites on same sheet → second site snaps to page boundary."""
         output = _make_test_xlsx(tmp_path, "test.xlsx")
         png = tmp_path / "test.png"
         _make_test_png(png, 10, 10)  # rows_needed = 1
 
-        # First site at purge_from (5): no break
+        # First site at purge_from (5): no snap
         r1 = insert_png(output, "Sheet", png, "Site1", 5, page_rows=10, purge_from=5, gap_rows=1)
-        # start_row=5, start_row > purge_from? No → no break, no snap
+        # start_row=5, start_row > purge_from? No → no snap
         # label=5, img=7, rows_needed=1 → returns 7+1+1 = 9
 
-        # Second site at row 9: should snap to page boundary and get break
+        # Second site at row 9: should snap to page boundary (auto breaks handle pagination)
         r2 = insert_png(output, "Sheet", png, "Site2", r1, page_rows=10, purge_from=5, gap_rows=1)
         # start_row=9 > 5 → snap: ((9-2)//10+1)*10+1 = (0+1)*10+1 = 11
-        # Break(id=11), label at 11, img at 13, returns 15
+        # Label at 11, img at 13, returns 15
 
         wb = load_workbook(str(output))
         ws = wb["Sheet"]
-        breaks = ws.row_breaks.brk
-        assert len(breaks) == 1
-        assert breaks[0].id == 11  # break before row 11 (page boundary)
+        # No manual breaks inserted — autoPageBreaks=True handles pagination
+        assert len(ws.row_breaks.brk) == 0
         assert ws.cell(row=11, column=1).value == "Site2"
         wb.close()
 
@@ -224,8 +223,8 @@ class TestPageBreakInsertion:
         assert r2 == 13
         assert r3 == 22  # pushed past page boundary at row 15
 
-    def test_break_ids_correct_convention(self, tmp_path):
-        """Break(id=X) means break BEFORE row X — (id-1) is multiple of page_rows."""
+    def test_no_manual_breaks_with_auto(self, tmp_path):
+        """Auto page breaks enabled → no manual breaks inserted."""
         output = _make_test_xlsx(tmp_path, "test.xlsx")
         png = tmp_path / "test.png"
         _make_test_png(png, 10, 10)
@@ -236,10 +235,7 @@ class TestPageBreakInsertion:
         wb = load_workbook(str(output))
         ws = wb["Sheet"]
         breaks = ws.row_breaks.brk
-        assert len(breaks) >= 1
-        # Break BEFORE row N means N is first row of a page → (N-1) % page_rows == 0
-        for brk in breaks:
-            assert (brk.id - 1) % 10 == 0
+        assert len(breaks) == 0
         wb.close()
 
 
@@ -268,8 +264,8 @@ class TestPageBreakEdgeCases:
         assert ws.cell(row=11, column=1).value == "Site1"  # label at overflow-pushed row
         wb.close()
 
-    def test_multi_sheet_independence(self, tmp_path):
-        """Page breaks on one sheet do not affect another — independent collections."""
+    def test_multi_sheet_no_manual_breaks(self, tmp_path):
+        """Auto breaks on one sheet do not affect another — no manual breaks anywhere."""
         wb = Workbook()
         ws1 = wb.active
         ws1.title = "Sheet1"
@@ -286,19 +282,19 @@ class TestPageBreakEdgeCases:
         png = tmp_path / "test.png"
         _make_test_png(png, 10, 10)
 
-        # Sheet1: insert with purge_from=1, start_row=10 → 10>1 triggers snap → Break at row 11
+        # Sheet1: insert with purge_from=1, start_row=10 → 10>1 triggers snap
         insert_png(path, "Sheet1", png, "Site1", 10, page_rows=5, purge_from=1, gap_rows=1)
 
-        # Sheet2: insert with purge_from=5, start_row=5 → 5>5 is False → no break (first site)
+        # Sheet2: insert with purge_from=5, start_row=5 → 5>5 is False → no snap (first site)
         insert_png(path, "Sheet2", png, "SiteA", 5, page_rows=5, purge_from=5, gap_rows=1)
 
         wb = load_workbook(str(path))
         breaks1 = wb["Sheet1"].row_breaks.brk
         breaks2 = wb["Sheet2"].row_breaks.brk
 
-        assert len(breaks1) == 1  # Sheet1: break at row 11 (snapped from 10)
-        assert breaks1[0].id == 11
-        assert len(breaks2) == 0  # Sheet2: no break (first site at purge_from row)
+        # No manual breaks — autoPageBreaks=True handles pagination
+        assert len(breaks1) == 0
+        assert len(breaks2) == 0
         wb.close()
 
     def test_gap_rows_zero(self, tmp_path):

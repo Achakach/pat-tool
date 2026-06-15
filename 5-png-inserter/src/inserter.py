@@ -8,6 +8,9 @@ from openpyxl.drawing.image import Image as XlImage
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.worksheet.pagebreak import Break
 import math
+import sys
+
+_a4_print_setup_done = False
 
 
 def purge_sheet(xlsx_path: Path, sheet_name: str, from_row: int):
@@ -65,13 +68,17 @@ def find_matching_sheet(wb, label: str) -> str | None:
 
 def _setup_a4_print(ws):
     """Configure sheet for A4 portrait printing."""
+    global _a4_print_setup_done
     ws.page_setup.paperSize = 9
     ws.page_setup.orientation = 'portrait'
-    ws.page_setup.autoPageBreaks = False
+    ws.page_setup.autoPageBreaks = True
     ws.page_margins.left = 0.25
     ws.page_margins.right = 0.25
     ws.page_margins.top = 0.5
     ws.page_margins.bottom = 0.5
+    if not _a4_print_setup_done:
+        print(f"[DEBUG] _setup_a4_print: setting A4 portrait, margins L=0.25 R=0.25 T=0.5 B=0.5, autoPageBreaks=False", file=sys.stderr)
+        _a4_print_setup_done = True
 
 
 def _calc_page_rows(ws, config_override=None):
@@ -80,11 +87,14 @@ def _calc_page_rows(ws, config_override=None):
     Row height = 15 points (default Excel row height).
     Returns integer row count. Pass config_override to bypass auto-calc."""
     if config_override is not None:
+        print(f"[DEBUG] _calc_page_rows: config_override={config_override}, returning early", file=sys.stderr)
         return config_override
     paper_height_pts = 841.89
     margins_pts = (float(ws.page_margins.top) + float(ws.page_margins.bottom)) * 72
     printable_pts = paper_height_pts - margins_pts
-    return math.ceil(printable_pts / 15)
+    rows = math.ceil(printable_pts / 15)
+    print(f"[DEBUG] _calc_page_rows: margins top={ws.page_margins.top} bottom={ws.page_margins.bottom}, paper=841.89, margins_pts={margins_pts}, printable_pts={printable_pts}, rows={printable_pts}/15={rows} (ceil)", file=sys.stderr)
+    return rows
 
 
 def _clear_page_breaks(ws):
@@ -102,6 +112,8 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
     (skipping the first site whose label starts at purge_from)."""
     wb = load_workbook(str(xlsx_path))
     ws = wb[sheet_name]
+    _sr0 = start_row  # capture original for debug
+    print(f"[DEBUG] insert_png: sheet='{sheet_name}' site='{label}' start_row={_sr0} purge_from={purge_from} page_rows={page_rows}", file=sys.stderr)
 
     # Read PNG dimensions
     with open(png_path, 'rb') as f:
@@ -122,18 +134,26 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
     default_ht = 15
     rows_needed = max(1, int(display_h * 0.75 / default_ht) + 1)
 
-    # Page break before label (skip first site on sheet)
+    # Snap to next page boundary (skip first site on sheet)
     if page_rows is not None and start_row > purge_from:
+        cond = f"YES (start_row={start_row} > purge_from={purge_from})"
         page_end = ((start_row - 2) // page_rows + 1) * page_rows + 1
-        start_row = max(start_row, page_end)
-        ws.row_breaks.append(Break(id=start_row))
+        new_sr = max(start_row, page_end)
+        print(f"[DEBUG] insert_png:   snap check: start_row({start_row}) > purge_from({purge_from})? YES", file=sys.stderr)
+        print(f"[DEBUG] insert_png:   snap: page_end = (({start_row}-2)//{page_rows}+1)*{page_rows}+1 = {page_end}, start_row = max({start_row},{page_end}) = {new_sr}", file=sys.stderr)
+        start_row = new_sr
+    elif page_rows is not None:
+        print(f"[DEBUG] insert_png:   snap check: start_row({start_row}) > purge_from({purge_from})? NO (page_rows={page_rows})", file=sys.stderr)
 
     # Overflow guard: if label+image group won't fit, push to next page
     if page_rows is not None:
         img_end = start_row + 1 + gap_rows + rows_needed
         page_end = ((start_row - 1) // page_rows + 1) * page_rows
-        if img_end > page_end:
+        overflow = img_end > page_end
+        print(f"[DEBUG] insert_png:   overflow: rows_needed={rows_needed}, img_end={start_row}+1+{gap_rows}+{rows_needed}={img_end}, page_end=(({start_row}-1)//{page_rows}+1)*{page_rows}={page_end}, {img_end}>{page_end}? {'YES' if overflow else 'NO'}", file=sys.stderr)
+        if overflow:
             start_row = page_end + 1
+            print(f"[DEBUG] insert_png:   pushed to row {start_row}", file=sys.stderr)
 
     # Label row (at final snapped/pushed start_row)
     label_cell = ws.cell(row=start_row, column=1)
@@ -152,7 +172,9 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
 
     wb.save(str(xlsx_path))
     wb.close()
-    return img_row + rows_needed + gap_rows  # image + gap for next
+    next_row = img_row + rows_needed + gap_rows  # image + gap for next
+    print(f"[DEBUG] insert_png:   FINAL: label at row {start_row}, image at row {img_row}, returns {next_row}", file=sys.stderr)
+    return next_row
 
 
 def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
@@ -164,6 +186,7 @@ def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
     would overflow the current page boundary."""
     wb = load_workbook(str(xlsx_path))
     ws = wb[sheet_name]
+    print(f"[DEBUG] insert_png_no_label: sheet='{sheet_name}' start_row={start_row} page_rows={page_rows}", file=sys.stderr)
     with open(png_path, 'rb') as f:
         f.read(16)
         w, h = struct.unpack('>II', f.read(8))
@@ -184,11 +207,16 @@ def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
     if page_rows is not None:
         img_end = start_row + gap_rows + rows_needed
         page_end = ((start_row - 1) // page_rows + 1) * page_rows
-        if img_end > page_end:
-            start_row = page_end + 1  # push image to next page
+        overflow = img_end > page_end
+        print(f"[DEBUG] insert_png_no_label:   rows_needed={rows_needed}, img_end={start_row}+{gap_rows}+{rows_needed}={img_end}, page_end=(({start_row}-1)//{page_rows}+1)*{page_rows}={page_end}, {img_end}>{page_end}? {'YES' if overflow else 'NO'}", file=sys.stderr)
+        if overflow:
+            start_row = page_end + 1
+            print(f"[DEBUG] insert_png_no_label:   pushed to row {start_row}", file=sys.stderr)
 
     img_row = start_row + gap_rows
     ws.add_image(img, f"{col}{img_row}")
     wb.save(str(xlsx_path))
     wb.close()
-    return img_row + rows_needed + gap_rows
+    next_row = img_row + rows_needed + gap_rows
+    print(f"[DEBUG] insert_png_no_label:   FINAL: image at row {img_row}, returns {next_row}", file=sys.stderr)
+    return next_row
