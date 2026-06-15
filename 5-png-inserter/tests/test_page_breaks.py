@@ -400,3 +400,98 @@ class TestPrintTitleRows:
         stderr = capsys.readouterr().err
         assert "WARNING" in stderr
         assert "1" in stderr  # content_rows=1 mentioned in warning
+
+    def test_overflow_with_headers_pushes(self, tmp_path):
+        """page_rows=10, header_count=2, start_row=9 → image pushed past row 10."""
+        output = _make_test_xlsx(tmp_path, "test.xlsx")
+        png = tmp_path / "tall.png"
+        _make_test_png(png, 10, 100)  # rows_needed = max(1, int(75/15)+1) = 6
+
+        next_row = insert_png(output, "Sheet", png, "Site1", start_row=9,
+                              page_rows=10, header_count=2, purge_from=1, gap_rows=0)
+
+        assert next_row > 10  # image pushed past page boundary
+
+        wb = load_workbook(str(output))
+        ws = wb["Sheet"]
+        assert ws.cell(row=11, column=1).value == "Site1"  # label at snapped/pushed row
+        wb.close()
+
+    def test_overflow_no_headers_unchanged(self, tmp_path):
+        """Same scenario with header_count=0 → original overflow behavior preserved."""
+        output = _make_test_xlsx(tmp_path, "test.xlsx")
+        png = tmp_path / "tall.png"
+        _make_test_png(png, 10, 100)
+
+        next_row = insert_png(output, "Sheet", png, "Site1", start_row=9,
+                              page_rows=10, header_count=0, purge_from=1, gap_rows=0)
+
+        assert next_row > 10
+
+        wb = load_workbook(str(output))
+        ws = wb["Sheet"]
+        assert ws.cell(row=11, column=1).value == "Site1"
+        wb.close()
+
+    def test_snap_with_headers_keeps_boundary(self, tmp_path):
+        """start_row=53, page_rows=52, header_count=6, purge_from=10 → label at row 53 (boundary preserved)."""
+        output = _make_test_xlsx(tmp_path, "test.xlsx")
+        png = tmp_path / "test.png"
+        _make_test_png(png, 10, 10)  # rows_needed = 1
+
+        next_row = insert_png(output, "Sheet", png, "Site1", 53,
+                              page_rows=52, purge_from=10, gap_rows=1,
+                              header_count=6)
+
+        wb = load_workbook(str(output))
+        ws = wb["Sheet"]
+        assert ws.cell(row=53, column=1).value == "Site1"
+        wb.close()
+
+    def test_snap_with_headers_mid_page(self, tmp_path):
+        """start_row=54, page_rows=52, header_count=6, purge_from=10 → label at row 99 (snapped)."""
+        output = _make_test_xlsx(tmp_path, "test.xlsx")
+        png = tmp_path / "test.png"
+        _make_test_png(png, 10, 10)  # rows_needed = 1
+
+        next_row = insert_png(output, "Sheet", png, "Site1", 54,
+                              page_rows=52, purge_from=10, gap_rows=1,
+                              header_count=6)
+
+        wb = load_workbook(str(output))
+        ws = wb["Sheet"]
+        assert ws.cell(row=99, column=1).value == "Site1"
+        wb.close()
+
+    def test_snap_no_headers_unchanged(self, tmp_path):
+        """start_row=53, page_rows=52, header_count=0, purge_from=10 → label at row 53 (original behavior)."""
+        output = _make_test_xlsx(tmp_path, "test.xlsx")
+        png = tmp_path / "test.png"
+        _make_test_png(png, 10, 10)  # rows_needed = 1
+
+        next_row = insert_png(output, "Sheet", png, "Site1", 53,
+                              page_rows=52, purge_from=10, gap_rows=1,
+                              header_count=0)
+
+        wb = load_workbook(str(output))
+        ws = wb["Sheet"]
+        assert ws.cell(row=53, column=1).value == "Site1"
+        wb.close()
+
+    def test_overflow_no_label_with_headers(self, tmp_path):
+        """No-label overflow guard respects header_count=2.
+        header_count reduces content area, pushing image past page boundary."""
+        output = _make_test_xlsx(tmp_path, "test.xlsx")
+        png = tmp_path / "tall.png"
+        _make_test_png(png, 10, 100)  # rows_needed = max(1, int(100*0.75/15)+1) = 6
+
+        # page_rows=10, header_count=2, start_row=9, gap_rows=0
+        # content_rows = 10-2 = 8
+        # img_end = 9+0+6 = 15
+        # start_row(9) <= page_rows(10) → page_end = page_rows = 10
+        # 15 > 10 → pushed to page_end+1 = 11
+        # img_row = 11+0 = 11, return = 11+6+0 = 17
+        next_row = insert_png_no_label(output, "Sheet", png, start_row=9,
+                                        gap_rows=0, page_rows=10, header_count=2)
+        assert next_row > 10  # pushed past page boundary
+        assert next_row >= 16

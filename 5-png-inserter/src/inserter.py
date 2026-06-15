@@ -113,14 +113,15 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
                label: str, start_row: int, merge_to_col: str | None = None,
                gap_rows: int = 1, col: str = "A",
                display_width: int | None = None,
-               page_rows: int | None = None, purge_from: int = 0) -> int:
+               page_rows: int | None = None, purge_from: int = 0,
+               header_count: int = 0) -> int:
     """Insert label + PNG. Returns next available row.
     When page_rows is set, inserts a page break before the label row
     (skipping the first site whose label starts at purge_from)."""
     wb = load_workbook(str(xlsx_path))
     ws = wb[sheet_name]
     _sr0 = start_row  # capture original for debug
-    print(f"[DEBUG] insert_png: sheet='{sheet_name}' site='{label}' start_row={_sr0} purge_from={purge_from} page_rows={page_rows}", file=sys.stderr)
+    print(f"[DEBUG] insert_png: sheet='{sheet_name}' site='{label}' start_row={_sr0} purge_from={purge_from} page_rows={page_rows} header_count={header_count}", file=sys.stderr)
 
     # Read PNG dimensions
     with open(png_path, 'rb') as f:
@@ -143,11 +144,20 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
 
     # Snap to next page boundary (skip first site on sheet)
     if page_rows is not None and start_row > purge_from:
-        cond = f"YES (start_row={start_row} > purge_from={purge_from})"
-        page_end = ((start_row - 2) // page_rows + 1) * page_rows + 1
+        if header_count and header_count > 0:
+            content_rows = page_rows - header_count
+            if start_row <= page_rows:
+                page_end = page_rows + 1  # snap to page 2 start
+            else:
+                offset = start_row - page_rows - 2  # -2 preserves exact page boundaries
+                pages_after = offset // content_rows + 1
+                page_end = page_rows + 1 + pages_after * content_rows
+            print(f"[DEBUG] insert_png:   snap: header_count={header_count} content_rows={content_rows} page_end={page_end}", file=sys.stderr)
+        else:
+            page_end = ((start_row - 2) // page_rows + 1) * page_rows + 1
+            print(f"[DEBUG] insert_png:   snap: page_end = (({start_row}-2)//{page_rows}+1)*{page_rows}+1 = {page_end}", file=sys.stderr)
         new_sr = max(start_row, page_end)
-        print(f"[DEBUG] insert_png:   snap check: start_row({start_row}) > purge_from({purge_from})? YES", file=sys.stderr)
-        print(f"[DEBUG] insert_png:   snap: page_end = (({start_row}-2)//{page_rows}+1)*{page_rows}+1 = {page_end}, start_row = max({start_row},{page_end}) = {new_sr}", file=sys.stderr)
+        print(f"[DEBUG] insert_png:   snap check: start_row({start_row}) > purge_from({purge_from})? YES, start_row = max({start_row},{page_end}) = {new_sr}", file=sys.stderr)
         start_row = new_sr
     elif page_rows is not None:
         print(f"[DEBUG] insert_png:   snap check: start_row({start_row}) > purge_from({purge_from})? NO (page_rows={page_rows})", file=sys.stderr)
@@ -155,9 +165,21 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
     # Overflow guard: if label+image group won't fit, push to next page
     if page_rows is not None:
         img_end = start_row + 1 + gap_rows + rows_needed
-        page_end = ((start_row - 1) // page_rows + 1) * page_rows
+        if header_count and header_count > 0:
+            content_rows = page_rows - header_count
+            if start_row <= page_rows:
+                page_end = page_rows
+            else:
+                offset = start_row - page_rows - 1
+                pages_before = offset // content_rows
+                page_end = page_rows + (pages_before + 1) * content_rows
+        else:
+            page_end = ((start_row - 1) // page_rows + 1) * page_rows
         overflow = img_end > page_end
-        print(f"[DEBUG] insert_png:   overflow: rows_needed={rows_needed}, img_end={start_row}+1+{gap_rows}+{rows_needed}={img_end}, page_end=(({start_row}-1)//{page_rows}+1)*{page_rows}={page_end}, {img_end}>{page_end}? {'YES' if overflow else 'NO'}", file=sys.stderr)
+        if header_count and header_count > 0:
+            print(f"[DEBUG] insert_png:   overflow: rows_needed={rows_needed}, img_end={start_row}+1+{gap_rows}+{rows_needed}={img_end}, page_end={page_end}, header_count={header_count}, content_rows={content_rows}, {img_end}>{page_end}? {'YES' if overflow else 'NO'}", file=sys.stderr)
+        else:
+            print(f"[DEBUG] insert_png:   overflow: rows_needed={rows_needed}, img_end={start_row}+1+{gap_rows}+{rows_needed}={img_end}, page_end={page_end}, {img_end}>{page_end}? {'YES' if overflow else 'NO'}", file=sys.stderr)
         if overflow:
             start_row = page_end + 1
             print(f"[DEBUG] insert_png:   pushed to row {start_row}", file=sys.stderr)
@@ -187,7 +209,8 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
 def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
                          start_row: int, gap_rows: int = 1, col: str = "A",
                          display_width: int | None = None,
-                         page_rows: int | None = None) -> int:
+                         page_rows: int | None = None,
+                         header_count: int = 0) -> int:
     """Insert PNG without label row. Returns next available row.
     When page_rows is set, pushes the image to the next page if it
     would overflow the current page boundary."""
@@ -210,12 +233,23 @@ def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
 
     rows_needed = max(1, int(display_h * 0.75 / 15) + 1)
 
-    # Page boundary overflow guard
+    # Page boundary overflow guard (header_count-aware)
     if page_rows is not None:
         img_end = start_row + gap_rows + rows_needed
-        page_end = ((start_row - 1) // page_rows + 1) * page_rows
-        overflow = img_end > page_end
-        print(f"[DEBUG] insert_png_no_label:   rows_needed={rows_needed}, img_end={start_row}+{gap_rows}+{rows_needed}={img_end}, page_end=(({start_row}-1)//{page_rows}+1)*{page_rows}={page_end}, {img_end}>{page_end}? {'YES' if overflow else 'NO'}", file=sys.stderr)
+        if header_count and header_count > 0:
+            content_rows = page_rows - header_count
+            if start_row <= page_rows:
+                page_end = page_rows
+            else:
+                offset = start_row - page_rows - 1
+                pages_before = offset // content_rows
+                page_end = page_rows + (pages_before + 1) * content_rows
+            overflow = img_end > page_end
+            print(f"[DEBUG] insert_png_no_label:   rows_needed={rows_needed}, header_count={header_count}, content_rows={content_rows}, img_end={start_row}+{gap_rows}+{rows_needed}={img_end}, page_end={page_end}, {img_end}>{page_end}? {'YES' if overflow else 'NO'}", file=sys.stderr)
+        else:
+            page_end = ((start_row - 1) // page_rows + 1) * page_rows
+            overflow = img_end > page_end
+            print(f"[DEBUG] insert_png_no_label:   rows_needed={rows_needed}, img_end={start_row}+{gap_rows}+{rows_needed}={img_end}, page_end=(({start_row}-1)//{page_rows}+1)*{page_rows}={page_end}, {img_end}>{page_end}? {'YES' if overflow else 'NO'}", file=sys.stderr)
         if overflow:
             start_row = page_end + 1
             print(f"[DEBUG] insert_png_no_label:   pushed to row {start_row}", file=sys.stderr)
