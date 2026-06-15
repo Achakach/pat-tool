@@ -63,13 +63,9 @@ def find_matching_sheet(wb, label: str) -> str | None:
 
 
 def _setup_a4_print(ws):
-    """Configure sheet for A4 portrait printing with auto-height flow."""
+    """Configure sheet for A4 portrait printing."""
     ws.page_setup.paperSize = 9
     ws.page_setup.orientation = 'portrait'
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0  # height auto-flows
-    from openpyxl.worksheet.properties import PageSetupProperties
-    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
     ws.page_setup.autoPageBreaks = False
     ws.page_margins.left = 0.25
     ws.page_margins.right = 0.25
