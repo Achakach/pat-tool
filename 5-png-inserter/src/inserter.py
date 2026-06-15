@@ -62,7 +62,7 @@ def find_matching_sheet(wb, label: str) -> str | None:
     return None
 
 
-def _setup_a4_print(ws, print_title_rows=None):
+def _setup_a4_print(ws):
     """Configure sheet for A4 portrait printing with auto-height flow."""
     ws.page_setup.paperSize = 9
     ws.page_setup.orientation = 'portrait'
@@ -70,20 +70,39 @@ def _setup_a4_print(ws, print_title_rows=None):
     ws.page_setup.fitToHeight = 0  # height auto-flows
     from openpyxl.worksheet.properties import PageSetupProperties
     ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+    ws.page_setup.autoPageBreaks = False
     ws.page_margins.left = 0.25
     ws.page_margins.right = 0.25
     ws.page_margins.top = 0.5
     ws.page_margins.bottom = 0.5
-    if print_title_rows:
-        ws.print_title_rows = print_title_rows
+
+
+def _calc_page_rows(ws, config_override=None):
+    """Calculate max rows fitting on one A4 page based on margins.
+    Paper height = 841.89 points (A4).
+    Row height = 15 points (default Excel row height).
+    Returns integer row count. Pass config_override to bypass auto-calc."""
+    if config_override is not None:
+        return config_override
+    paper_height_pts = 841.89
+    margins_pts = (float(ws.page_margins.top) + float(ws.page_margins.bottom)) * 72
+    printable_pts = paper_height_pts - margins_pts
+    return int(printable_pts / 15)
+
+
+def _clear_page_breaks(ws):
+    """Remove all manual horizontal page breaks from worksheet."""
+    ws.row_breaks.brk = ()
 
 
 def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
                label: str, start_row: int, merge_to_col: str | None = None,
                gap_rows: int = 1, col: str = "A",
                display_width: int | None = None,
-               page_rows: int | None = None, header_count: int = 0) -> int:
-    """Insert label + PNG. Returns next available row."""
+               page_rows: int | None = None, purge_from: int = 0) -> int:
+    """Insert label + PNG. Returns next available row.
+    When page_rows is set, inserts a page break before the label row
+    (skipping the first site whose label starts at purge_from)."""
     wb = load_workbook(str(xlsx_path))
     ws = wb[sheet_name]
 
@@ -92,24 +111,18 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
         f.read(16)
         w, h = struct.unpack('>II', f.read(8))
 
-    # Page boundary check — push to next page if image would overflow
-    if page_rows:
-        usable = page_rows - header_count if header_count else page_rows
-        est_rows = max(1, int(h * 0.75 / 15) + 1)
-        page_end = ((start_row - 1) // usable + 1) * usable
-        if start_row + 1 + gap_rows + est_rows > page_end:
-            start_row = page_end + 1
+    # Page break before label (skip first site on sheet)
+    if page_rows is not None and start_row > purge_from:
+        page_end = ((start_row - 2) // page_rows + 1) * page_rows + 1
+        start_row = max(start_row, page_end)
+        ws.row_breaks.append(Break(id=start_row))
 
-    # Label row
+    # Label row (at possibly-snapped start_row)
     label_cell = ws.cell(row=start_row, column=1)
     label_cell.value = label
     label_cell.font = Font(bold=True, size=12)
     label_cell.fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
     label_cell.alignment = Alignment(horizontal="center", vertical="center")
-
-    # Page break before label (skip first site — it's at purge_from=10)
-    if start_row > 10:
-        ws.row_breaks.append(Break(id=start_row))
 
     # Merge label row cells (if configured)
     if merge_to_col:
@@ -141,21 +154,15 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
 def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
                          start_row: int, gap_rows: int = 1, col: str = "A",
                          display_width: int | None = None,
-                         page_rows: int | None = None, header_count: int = 0) -> int:
-    """Insert PNG without label row. Returns next available row."""
+                         page_rows: int | None = None) -> int:
+    """Insert PNG without label row. Returns next available row.
+    When page_rows is set, pushes the image to the next page if it
+    would overflow the current page boundary."""
     wb = load_workbook(str(xlsx_path))
     ws = wb[sheet_name]
     with open(png_path, 'rb') as f:
         f.read(16)
         w, h = struct.unpack('>II', f.read(8))
-
-    # Page boundary check — push to next page if image would overflow
-    if page_rows:
-        usable = page_rows - header_count if header_count else page_rows
-        est_rows = max(1, int(h * 0.75 / 15) + 1)
-        page_end = ((start_row - 1) // usable + 1) * usable
-        if start_row + 1 + gap_rows + est_rows > page_end:
-            start_row = page_end + 1
 
     # Scale image to display_width (if configured)
     img = XlImage(str(png_path))
@@ -168,6 +175,13 @@ def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
         display_h = h
 
     rows_needed = max(1, int(display_h * 0.75 / 15) + 1)
+
+    # Page boundary overflow guard
+    if page_rows is not None:
+        img_end = start_row + gap_rows + rows_needed
+        page_end = ((start_row - 1) // page_rows + 1) * page_rows
+        if img_end > page_end:
+            start_row = page_end + 1  # push image to next page
 
     img_row = start_row + gap_rows
     ws.add_image(img, f"{col}{img_row}")

@@ -11,7 +11,7 @@
   "insert_gap_rows": 1,
   "image_insert_col": "C",
   "page_break_before_label": false,
-  "image_display_width": 300,
-  "a4_page_rows": 60,
-  "print_title_rows": "1:6"
+  "_comment": "Use 'a4_page_rows' to override auto-calculated A4 page capacity (null = auto-calc). Auto-calc: (841.89 - (top_margin + bottom_margin) * 72) / 15",
+  "a4_page_rows": null,
+  "image_display_width": 300
 }

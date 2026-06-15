@@ -8,7 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 from openpyxl import load_workbook
 from src.matcher import read_matching, match_pngs, extract_planwork
-from src.inserter import purge_sheet, extract_label, extract_site, find_matching_sheet, insert_png, insert_png_no_label, _setup_a4_print
+from src.inserter import purge_sheet, extract_label, extract_site, find_matching_sheet, insert_png, insert_png_no_label, _setup_a4_print, _calc_page_rows, _clear_page_breaks
 
 
 def progress_bar(current, total, width=30):
@@ -65,13 +65,8 @@ def main():
     gap_rows = config.get("insert_gap_rows", 1)
     img_col = config.get("image_insert_col", "A")
     display_width = config.get("image_display_width")
-    page_rows = config.get("a4_page_rows")
-    title_rows = config.get("print_title_rows")
-    header_count = 0
-    if title_rows:
-        parts = title_rows.split(":")
-        if len(parts) == 2:
-            header_count = int(parts[1]) - int(parts[0]) + 1
+    page_break_enabled = config.get("page_break_before_label", False)
+    a4_page_rows_override = config.get("a4_page_rows")
 
     total_inserted = 0
     total_files = 0
@@ -156,6 +151,14 @@ def main():
         total_pngs = len(valid_pngs)
         pngs = valid_pngs
 
+        # Calculate page rows for page breaks (if feature enabled)
+        if page_break_enabled:
+            wb_temp = load_workbook(str(output_path))
+            page_rows_val = _calc_page_rows(wb_temp.active, a4_page_rows_override)
+            wb_temp.close()
+        else:
+            page_rows_val = None
+
         # Purge matched sheets + insert PNGs into sheets
         purged_sheets = set()
         sheet_rows = {}
@@ -179,7 +182,9 @@ def main():
                 purged_sheets.add(sheet_name)
                 sheet_rows[sheet_name] = purge_from
                 wb = load_workbook(str(output_path))
-                _setup_a4_print(wb[sheet_name], print_title_rows=title_rows)
+                _setup_a4_print(wb[sheet_name])
+                if not page_break_enabled:
+                    _clear_page_breaks(wb[sheet_name])
                 wb.save(str(output_path))
                 wb.close()
                 print(f"  Purged: '{sheet_name}' from row {purge_from}")
@@ -190,18 +195,15 @@ def main():
             # Insert label (site name) + PNG, or just PNG if already labeled
             site = extract_site(png.name)
             if (site, sheet_name) not in labeled:
-                # Push to next page boundary for subsequent sites on same sheet
-                if page_rows and any(s[1] == sheet_name for s in labeled):
-                    current_row = sheet_rows[sheet_name]
-                    usable = page_rows - header_count if header_count else page_rows
-                    page_end = ((current_row - 1) // usable + 1) * usable
-                    current_row = page_end + 1
-                next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows, header_count=header_count)
+                next_row = insert_png(output_path, sheet_name, png, site, current_row, merge_to_col, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows_val, purge_from=(purge_from or 10))
                 labeled.add((site, sheet_name))
             else:
-                next_row = insert_png_no_label(output_path, sheet_name, png, current_row, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows, header_count=header_count)
+                next_row = insert_png_no_label(output_path, sheet_name, png, current_row, gap_rows, col=img_col, display_width=display_width, page_rows=page_rows_val)
 
             sheet_rows[sheet_name] = next_row
+
+            if page_rows_val and (next_row - current_row) > page_rows_val:
+                print(f"  WARNING: Image '{png.name}' spans {next_row - current_row} rows, exceeding page capacity of {page_rows_val}", file=sys.stderr)
 
             pw = extract_planwork(png.name)
             gbar = progress_bar(global_done + 1, global_total)
