@@ -11,6 +11,7 @@ from src.columns import (
     col_letter_to_index, build_pw_column, build_ip_column,
     copy_column, find_matching_sheet, clean_sheet_name
 )
+from src.print_setup import _setup_a4_print, _calc_page_rows, _parse_print_title_rows
 
 
 def read_matching(file_path, sheet_name, filename_col, planwork_col):
@@ -61,6 +62,11 @@ def main():
     paste_row = config["paste_start_row"]
     paste_mode = config.get("paste_mode", "overwrite")
     columns = config["columns"]
+
+    # Parse print config
+    print_title_rows_raw = config.get("print_title_rows")
+    header_count, print_title_rows_str = _parse_print_title_rows(print_title_rows_raw)
+    page_break_enabled = config.get("page_break_enabled", False)
 
     output_folder.mkdir(parents=True, exist_ok=True)
 
@@ -126,6 +132,13 @@ def main():
                 continue
 
             tws = twb[tsheet_name]
+
+            _setup_a4_print(tws, print_title_rows_str)
+            if page_break_enabled:
+                page_rows = _calc_page_rows(tws, config.get("a4_page_rows"))
+            else:
+                page_rows = None
+
             swb = load_workbook(str(xlsx_path))
             sws = swb[data_sheet]
 
