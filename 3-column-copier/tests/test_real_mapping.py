@@ -25,8 +25,17 @@ class TestRealMapping:
         assert src_path.exists()
         assert tgt_path.exists()
 
-        # 2. Save SHA256 of source file (original state)
-        src_hash_before = hashlib.sha256(src_path.read_bytes()).hexdigest()
+        # 2. Compute content hash of original data columns (C/D/E/G/H, rows 3-22)
+        # Note: full-file SHA256 would differ because copier writes temp cols Q/R/S
+        s_before = load_workbook(str(src_path))
+        cs_before = s_before["cutsheet"]
+        content_parts = []
+        for col in [3, 4, 5, 7, 8]:  # C, D, E, G, H
+            for row in range(3, 23):  # rows 3-22
+                v = cs_before.cell(row=row, column=col).value
+                content_parts.append(str(v))
+        content_hash_before = hashlib.sha256("|".join(content_parts).encode()).hexdigest()
+        s_before.close()
 
         # 3. Create matching.xlsx in tmp
         matching_path = tmp_path / "matching.xlsx"
@@ -98,9 +107,20 @@ class TestRealMapping:
 
         wb.close()
 
-        # 7. Verify original source columns unchanged
+        # 7. Verify original source columns unchanged (content-level hash comparison)
+        # copier writes temp columns (Q/R/S) so full-file SHA256 would differ
         s = load_workbook(str(src_path))
         cs = s["cutsheet"]
+        content_parts_after = []
+        for col in [3, 4, 5, 7, 8]:
+            for row in range(3, 23):
+                v = cs.cell(row=row, column=col).value
+                content_parts_after.append(str(v))
+        content_hash_after = hashlib.sha256("|".join(content_parts_after).encode()).hexdigest()
+        assert content_hash_after == content_hash_before, \
+            f"Source data columns modified! hash_before={content_hash_before[:12]}... hash_after={content_hash_after[:12]}..."
+
+        # Also spot-check key cells
         assert cs.cell(row=3, column=3).value == "CR10SDA", "source col C unchanged"
         assert cs.cell(row=3, column=4).value == "1/1/1", "source col D unchanged"
         assert cs.cell(row=3, column=5).value == "CR10-KM01", "source col E unchanged"
