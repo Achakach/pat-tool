@@ -10,34 +10,37 @@
   "columns": {
     "PW": {
       "type": "planwork",
-      "paste_to": "Q"
+      "build_at": "Q",
+      "paste_to": "J"
     },
     "IP1": {
       "type": "ip_lookup",
       "lookup_col": "C",
       "log_sheet": "Get Log Before&After",
-      "paste_to": "R"
+      "build_at": "R",
+      "paste_to": "E"
     },
     "IP2": {
       "type": "ip_lookup",
       "lookup_col": "G",
       "log_sheet": "Get Log Before&After",
-      "paste_to": "S"
+      "build_at": "S",
+      "paste_to": "H"
     },
     "NE_NO1": {
       "type": "copy",
       "source_col": "C",
-      "paste_to": "C"
+      "paste_to": "D"
     },
     "PORT_NO1": {
       "type": "copy",
       "source_col": "D",
-      "paste_to": "D"
+      "paste_to": "F"
     },
     "L1": {
       "type": "copy",
       "source_col": "E",
-      "paste_to": "E"
+      "paste_to": "C"
     },
     "NE_NO2": {
       "type": "copy",
@@ -47,7 +50,7 @@
     "PORT_NO2": {
       "type": "copy",
       "source_col": "H",
-      "paste_to": "H"
+      "paste_to": "I"
     }
   },
   "source_folder": "./source",
