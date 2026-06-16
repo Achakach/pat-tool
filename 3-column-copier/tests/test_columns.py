@@ -157,3 +157,45 @@ class TestAppendInsertRows:
             assert tws3.cell(row=8, column=1).value == "at_paste_row"  # shifted from 5→8
             assert tws3.cell(row=9, column=1).value == "after"  # shifted from 6→9
             twb3.close()
+
+    def test_full_append_with_page_break(self):
+        """Integration: insert_rows + snap_gap_rows work together in append pipeline.
+
+        Simulates the full copier append flow with page_break_enabled=True:
+          1. insert_rows at paste_row pushes existing content down
+          2. After paste, snap_gap_rows detects overflow and calculates gap
+          3. Gap insert pushes content to clean page boundary
+        """
+        from openpyxl import Workbook
+        from src.print_setup import snap_gap_rows
+
+        wb = Workbook()
+        ws = wb.active
+
+        # Setup: content at row 9 — existing data below paste area
+        ws.cell(row=9, column=1).value = "existing_below"
+        ws.cell(row=9, column=2).value = "col2"
+
+        # Step 1: Append mode insert_rows — paste_row=3, 5 data rows
+        ws.insert_rows(3, 5)
+        # Content originally at row 9 → shifted to row 9+5=14
+        assert ws.cell(row=14, column=1).value == "existing_below"
+        assert ws.cell(row=14, column=2).value == "col2"
+
+        # Step 2: Simulate pasting 5 rows at rows 3-7 → paste_end=8
+        paste_end = 8
+
+        # Step 3: snap_gap_rows with page_rows=10
+        # row 14 with page_rows=10: clean starts 1, 11, 21
+        # row 14 is NOT clean → next clean = 21, gap = 21-14 = 7
+        gap = snap_gap_rows(paste_end, ws, page_rows=10)
+        assert gap == 7
+
+        # Step 4: Apply snap — insert gap rows at paste_end
+        ws.insert_rows(paste_end, gap)
+
+        # Content at row 14 → shifted to row 14+7=21 (clean page boundary)
+        assert ws.cell(row=21, column=1).value == "existing_below"
+        assert ws.cell(row=21, column=2).value == "col2"
+
+        wb.close()
