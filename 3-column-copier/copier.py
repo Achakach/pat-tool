@@ -39,16 +39,23 @@ def read_matching(file_path, sheet_name, filename_col, planwork_col):
     return result
 
 
-def main():
-    config_path = Path(__file__).parent / "config.json"
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
+def main(config=None):
+    if config is None:
+        config_path = Path(__file__).parent / "config.json"
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
 
-    action = config.get("action", "copy")
-    matching_file = (Path(__file__).parent / config["matching_file"]).resolve()
-    source_folder = (Path(__file__).parent / config["source_folder"]).resolve()
-    target_folder = (Path(__file__).parent / config["target_folder"]).resolve()
-    output_folder = (Path(__file__).parent / config["output_folder"]).resolve()
+        action = config.get("action", "copy")
+        matching_file = (Path(__file__).parent / config["matching_file"]).resolve()
+        source_folder = (Path(__file__).parent / config["source_folder"]).resolve()
+        target_folder = (Path(__file__).parent / config["target_folder"]).resolve()
+        output_folder = (Path(__file__).parent / config["output_folder"]).resolve()
+    else:
+        action = config.get("action", "copy")
+        matching_file = Path(config["matching_file"]).resolve()
+        source_folder = Path(config["source_folder"]).resolve()
+        target_folder = Path(config["target_folder"]).resolve()
+        output_folder = Path(config["output_folder"]).resolve()
 
     # Read matching
     pw_to_file = read_matching(
