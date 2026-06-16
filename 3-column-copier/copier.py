@@ -11,7 +11,7 @@ from src.columns import (
     col_letter_to_index, build_pw_column, build_ip_column,
     copy_column, find_matching_sheet, clean_sheet_name
 )
-from src.print_setup import _setup_a4_print, _calc_page_rows, _parse_print_title_rows
+from src.print_setup import _setup_a4_print, _calc_page_rows, _parse_print_title_rows, snap_gap_rows
 
 
 def read_matching(file_path, sheet_name, filename_col, planwork_col):
@@ -157,6 +157,32 @@ def main():
                     actual_row += 1
                 paste_row = actual_row
 
+            # Append mode: insert rows to push existing content down
+            if paste_mode == "append" and page_break_enabled:
+                # Count source data rows
+                src_data_rows = 0
+                check_row = start_row
+                while True:
+                    empty = all(sws.cell(row=check_row, column=c).value is None
+                                for c in range(1, sws.max_column + 1))
+                    if empty and check_row > start_row:
+                        break
+                    src_data_rows += 1
+                    check_row += 1
+
+                # Check for merged cells in paste range
+                has_merged = False
+                for merged_range in tws.merged_cells.ranges:
+                    if merged_range.min_row <= paste_row + src_data_rows and merged_range.max_row >= paste_row:
+                        has_merged = True
+                        break
+
+                if has_merged:
+                    print(f"WARNING: Merged cells detected in paste area, skipping insert_rows", file=sys.stderr)
+                elif src_data_rows > 0:
+                    tws.insert_rows(paste_row, src_data_rows)
+
+            paste_end = paste_row  # track max row reached across all columns
             for col_name, col_cfg in columns.items():
                 col_type = col_cfg.get("type")
                 if col_type == "copy":
@@ -181,6 +207,14 @@ def main():
                         tws.cell(row=dst_row, column=dst_idx).value = val
                     src_row += 1
                     dst_row += 1
+                paste_end = max(paste_end, dst_row)
+
+            # Page-overflow snap: push content below to clean page boundary
+            if page_break_enabled:
+                gap = snap_gap_rows(paste_end, tws, page_rows, header_count)
+                if gap > 0:
+                    tws.insert_rows(paste_end, gap)
+                    print(f"  Snapped: inserted {gap} gap rows at row {paste_end} to push content to page boundary", file=sys.stderr)
 
             swb.close()
 

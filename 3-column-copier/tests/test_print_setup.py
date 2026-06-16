@@ -69,3 +69,35 @@ class TestParsePrintTitleRows:
         assert result == (0, None)
         captured = capsys.readouterr()
         assert "WARNING" in captured.err
+
+
+class TestSnapGapRows:
+    """Tests for snap_gap_rows — page boundary gap calculation."""
+
+    def test_no_gap_when_content_at_page_start(self):
+        """Content at row 11 (page 2 start) with page_rows=10 → gap=0."""
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        # Set up: paste ends at row 8, content exists at row 11
+        ws.cell(row=11, column=1).value = "existing"
+
+        gap = snap_gap_rows(8, ws, page_rows=10)
+        assert gap == 0  # row 11 = page_rows+1 = clean page 2 start
+        wb.close()
+
+    def test_inserts_gap_when_content_mid_page(self):
+        """Content at row 9 (mid page 1) with page_rows=10 → gap=2 to push to row 11."""
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        # Set up: paste ends at row 8, content exists at row 9
+        ws.cell(row=9, column=1).value = "existing"
+
+        gap = snap_gap_rows(8, ws, page_rows=10)
+        # row 9 is NOT a clean page start (clean starts: 1, 11, 21, ...)
+        # next clean = 11, gap = 11-9 = 2
+        assert gap == 2
+        wb.close()
