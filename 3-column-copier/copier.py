@@ -9,7 +9,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 from src.columns import (
     col_letter_to_index, build_pw_column, build_ip_column,
-    copy_column, find_matching_sheet, clean_sheet_name
+    find_matching_sheet, clean_sheet_name
 )
 from src.print_setup import _setup_a4_print, _calc_page_rows, _parse_print_title_rows, snap_gap_rows
 
@@ -96,16 +96,16 @@ def main():
             ws = wb[data_sheet]
             for col_name, col_cfg in columns.items():
                 col_type = col_cfg.get("type")
-                paste_to = col_cfg.get("paste_to")
+                build_at = col_cfg.get("build_at", col_cfg.get("paste_to"))
                 if col_type == "planwork":
-                    build_pw_column(ws, planwork, paste_to, start_row)
-                    print(f"  PW column: {paste_to} = '{planwork}'")
+                    build_pw_column(ws, planwork, build_at, start_row)
+                    print(f"  PW column: {build_at} = '{planwork}'")
                 elif col_type == "ip_lookup":
                     log_sheet_name = col_cfg["log_sheet"]
                     if log_sheet_name in wb.sheetnames:
                         log_ws = wb[log_sheet_name]
-                        build_ip_column(ws, col_cfg["lookup_col"], log_ws, paste_to, start_row)
-                        print(f"  IP column: {paste_to} (lookup from {col_cfg['lookup_col']})")
+                        build_ip_column(ws, col_cfg["lookup_col"], log_ws, build_at, start_row)
+                        print(f"  IP column: {build_at} (lookup from {col_cfg['lookup_col']})")
 
             wb.save(str(xlsx_path))
             wb.close()
@@ -185,13 +185,18 @@ def main():
             paste_end = paste_row  # track max row reached across all columns
             for col_name, col_cfg in columns.items():
                 col_type = col_cfg.get("type")
-                if col_type == "copy":
-                    copy_column(sws, col_cfg["source_col"], col_cfg["paste_to"], start_row)
-
                 paste_to = col_cfg.get("paste_to")
-                # Copy value from source to target
-                src_idx = col_letter_to_index(paste_to)
-                dst_idx = col_letter_to_index(paste_to)
+                # Determine source column based on type
+                if col_type in ("planwork", "ip_lookup"):
+                    src_col = col_cfg.get("build_at", col_cfg.get("paste_to"))
+                elif col_type == "copy":
+                    src_col = col_cfg.get("source_col", col_cfg.get("paste_to"))
+                else:
+                    src_col = col_cfg.get("paste_to")
+
+                dst_col = col_cfg.get("paste_to")
+                src_idx = col_letter_to_index(src_col)
+                dst_idx = col_letter_to_index(dst_col)
                 src_row = start_row
                 dst_row = paste_row if paste_mode == "append" else min(start_row, paste_row)
                 while True:
@@ -236,8 +241,8 @@ def main():
             for col_name, col_cfg in columns.items():
                 col_type = col_cfg.get("type")
                 if col_type in ("planwork", "ip_lookup"):
-                    paste_to = col_cfg.get("paste_to")
-                    col_idx = col_letter_to_index(paste_to)
+                    col_to_delete = col_cfg.get("build_at", col_cfg.get("paste_to"))
+                    col_idx = col_letter_to_index(col_to_delete)
                     ws.delete_cols(col_idx)
             out = output_folder / xlsx_path.name
             wb.save(str(out))

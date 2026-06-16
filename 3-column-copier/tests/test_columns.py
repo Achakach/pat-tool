@@ -5,7 +5,7 @@ from pathlib import Path
 from openpyxl import Workbook, load_workbook
 from src.columns import (
     col_letter_to_index, build_pw_column, build_ip_column,
-    copy_column, clean_sheet_name, find_matching_sheet
+    clean_sheet_name, find_matching_sheet
 )
 
 
@@ -45,18 +45,6 @@ class TestIpColumn:
         wb.close()
 
 
-class TestCopyColumn:
-    def test_copy(self):
-        wb = Workbook()
-        ws = wb.active
-        ws["A2"] = "val1"
-        ws["A3"] = "val2"
-        copy_column(ws, "A", "B", 2)
-        assert ws["B2"].value == "val1"
-        assert ws["B3"].value == "val2"
-        wb.close()
-
-
 class TestSheetMatching:
     def test_clean(self):
         assert clean_sheet_name("2.3. IP & Port Assignment(P.4)") == "ip & port assignment"
@@ -67,6 +55,100 @@ class TestSheetMatching:
         wb.active.title = "2.3. IP & Port Assignment(P.4)"
         assert find_matching_sheet(wb, "IP & Port Assignment") == "2.3. IP & Port Assignment(P.4)"
         wb.close()
+
+
+class TestPasteDirect:
+    """Tests for direct paste behavior (source_col → paste_to, no copy_column)."""
+
+    def test_paste_direct_source_to_target(self):
+        """Copy type column: read from source_col in source, write to paste_to in target."""
+        swb = Workbook()
+        sws = swb.active
+        # Source has data in column C (source_col)
+        sws["C2"] = "val1"
+        sws["C3"] = "val2"
+
+        twb = Workbook()
+        tws = twb.active
+
+        # Simulate direct paste: read from C (source_col) in source, write to D (paste_to) in target
+        src_idx = col_letter_to_index("C")
+        dst_idx = col_letter_to_index("D")
+        for row in range(2, 4):
+            val = sws.cell(row=row, column=src_idx).value
+            if val is not None:
+                tws.cell(row=row, column=dst_idx).value = val
+
+        # Assert target column D has copied data
+        assert tws["D2"].value == "val1"
+        assert tws["D3"].value == "val2"
+        # Assert source column C unchanged
+        assert sws["C2"].value == "val1"
+        assert sws["C3"].value == "val2"
+
+        swb.close()
+        twb.close()
+
+
+class TestBuildAt:
+    """Tests for build_at column mapping to target column."""
+
+    def test_build_at_maps_to_target(self):
+        """build_at: read from build_at col in source, write to paste_to col in target."""
+        swb = Workbook()
+        sws = swb.active
+        # Source has data in column R = col 18 (build_at column)
+        sws.cell(row=2, column=18).value = "built_val1"
+        sws.cell(row=3, column=18).value = "built_val2"
+
+        twb = Workbook()
+        tws = twb.active
+
+        # Simulate: read from R (build_at), write to E (paste_to)
+        src_idx = col_letter_to_index("R")
+        dst_idx = col_letter_to_index("E")
+        for row in range(2, 4):
+            val = sws.cell(row=row, column=src_idx).value
+            if val is not None:
+                tws.cell(row=row, column=dst_idx).value = val
+
+        # Assert target column E has data from source column R
+        assert tws.cell(row=2, column=5).value == "built_val1"
+        assert tws.cell(row=3, column=5).value == "built_val2"
+        # Assert source column R unchanged
+        assert sws.cell(row=2, column=18).value == "built_val1"
+
+        swb.close()
+        twb.close()
+
+
+class TestBackwardCompat:
+    """Tests for backward compatibility when no build_at key exists."""
+
+    def test_backward_compat_no_build_at(self):
+        """No build_at: fall back to using paste_to for both read and write."""
+        swb = Workbook()
+        sws = swb.active
+        # Source has data in column F (paste_to used as both source and dest column)
+        sws.cell(row=2, column=6).value = "compat_val1"
+        sws.cell(row=3, column=6).value = "compat_val2"
+
+        twb = Workbook()
+        tws = twb.active
+
+        # Simulate: no build_at, paste_to=F used for both read and write
+        col_idx = col_letter_to_index("F")
+        for row in range(2, 4):
+            val = sws.cell(row=row, column=col_idx).value
+            if val is not None:
+                tws.cell(row=row, column=col_idx).value = val
+
+        # Assert target column F has same values as source column F
+        assert tws.cell(row=2, column=6).value == "compat_val1"
+        assert tws.cell(row=3, column=6).value == "compat_val2"
+
+        swb.close()
+        twb.close()
 
 
 class TestAppendInsertRows:

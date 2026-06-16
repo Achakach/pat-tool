@@ -56,26 +56,6 @@ def build_ip_column(ws, lookup_col: str, log_sheet, col_letter: str, start_row: 
         row += 1
 
 
-def copy_column(ws, source_col: str, paste_col: str, start_row: int = 2):
-    """Copy column values from source_col to paste_col."""
-    src_idx = col_letter_to_index(source_col)
-    dst_idx = col_letter_to_index(paste_col)
-
-    row = start_row
-    while True:
-        row_empty = True
-        for c in range(1, ws.max_column + 1):
-            if ws.cell(row=row, column=c).value is not None:
-                row_empty = False
-                break
-        if row_empty and row > start_row:
-            break
-
-        value = ws.cell(row=row, column=src_idx).value
-        if value is not None:
-            ws.cell(row=row, column=dst_idx).value = value
-        row += 1
-
 
 def clean_sheet_name(name: str) -> str:
     """Clean sheet name for matching. '2.3. IP & Port Assignment(P.4)' -> 'ip & port assignment'"""
