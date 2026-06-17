@@ -7,6 +7,7 @@ import shutil
 import re
 from pathlib import Path
 from openpyxl import load_workbook
+from openpyxl.cell.cell import MergedCell
 from src.columns import (
     col_letter_to_index, build_pw_column, build_ip_column,
     find_matching_sheet, clean_sheet_name
@@ -140,8 +141,8 @@ def main(config=None):
 
             tws = twb[tsheet_name]
 
-            _setup_a4_print(tws, print_title_rows_str)
             if page_break_enabled:
+                _setup_a4_print(tws, print_title_rows_str)
                 page_rows = _calc_page_rows(tws, config.get("a4_page_rows"))
             else:
                 page_rows = None
@@ -216,7 +217,9 @@ def main(config=None):
                         break
                     val = sws.cell(row=src_row, column=src_idx).value
                     if val is not None:
-                        tws.cell(row=dst_row, column=dst_idx).value = val
+                        cell = tws.cell(row=dst_row, column=dst_idx)
+                        if not isinstance(cell, MergedCell):
+                            cell.value = val
                     src_row += 1
                     dst_row += 1
                 paste_end = max(paste_end, dst_row)

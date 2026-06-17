@@ -44,6 +44,23 @@ class TestIpColumn:
         assert ws["E3"].value == "10.10.11.11"
         wb.close()
 
+    @pytest.mark.parametrize("log_value,ne_no,expected_ip", [
+        ("new_100_10.0.0.1(MXaxxxx)", "100", "10.0.0.1"),
+        ("exist_CR10SDA_10.10.10.10_backup", "CR10SDA", "10.10.10.10"),
+        ("old_new_200_192.168.1.5_v2", "200", "192.168.1.5"),
+        ("prefix_300_10.20.30.40(suffix)", "300", "10.20.30.40"),
+    ])
+    def test_lookup_wrapped_formats(self, log_value, ne_no, expected_ip):
+        """IP lookup should find NE_NO_IP pattern in wrapped/noisy log values."""
+        wb = Workbook()
+        ws = wb.active
+        ws["A2"] = ne_no
+        log = wb.create_sheet("Log")
+        log["A1"] = log_value
+        build_ip_column(ws, "A", log, "B", 2)
+        assert ws["B2"].value == expected_ip
+        wb.close()
+
 
 class TestSheetMatching:
     def test_clean(self):
@@ -85,6 +102,52 @@ class TestPasteDirect:
         # Assert source column C unchanged
         assert sws["C2"].value == "val1"
         assert sws["C3"].value == "val2"
+
+        swb.close()
+        twb.close()
+
+    def test_paste_skips_merged_cells(self):
+        """Paste should skip writes to merged sub-cells (MergedCell) in target."""
+        from openpyxl.cell.cell import MergedCell
+
+        swb = Workbook()
+        sws = swb.active
+        # Source has data in column B (the column that overlaps a merge in target)
+        sws["B1"] = "source B1 val"
+        sws["B2"] = "source B2 val"
+
+        twb = Workbook()
+        tws = twb.active
+        # Merge A1:B1 — B1 becomes a MergedCell (sub-cell of the merge)
+        tws.merge_cells("A1:B1")
+        tws["A1"] = "merged header"
+        # Regular cell below the merge — no merge here
+        tws["B2"] = "target B2"
+
+        # Simulate guarded paste: read from source column B, write to target column B
+        src_idx = col_letter_to_index("B")
+        dst_idx = col_letter_to_index("B")
+        for row in range(1, 3):
+            val = sws.cell(row=row, column=src_idx).value
+            if val is not None:
+                cell = tws.cell(row=row, column=dst_idx)
+                if not isinstance(cell, MergedCell):
+                    cell.value = val
+
+        # B1 is a MergedCell (sub-cell of A1:B1 merge)
+        cell_b1 = tws.cell(row=1, column=2)
+        assert isinstance(cell_b1, MergedCell), \
+            "B1 should be a MergedCell after merge_cells('A1:B1')"
+        # Write to B1 was skipped by guard — merged header at A1 is preserved
+        assert tws["A1"].value == "merged header", \
+            "Merged value at A1 anchor must be preserved (B1 write was skipped)"
+        # B1 as MergedCell should not have its own writable value
+        assert tws["B1"].value is None, \
+            "MergedCell B1 should have no value of its own"
+
+        # B2 is non-merged and should receive source value
+        assert tws["B2"].value == "source B2 val", \
+            "Non-merged cell B2 should receive source value"
 
         swb.close()
         twb.close()
