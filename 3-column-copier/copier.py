@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.cell.cell import MergedCell
+from openpyxl.utils import get_column_letter
 from src.columns import (
     col_letter_to_index, build_pw_column, build_ip_column,
     find_matching_sheet, clean_sheet_name
@@ -139,6 +140,9 @@ def main(config=None):
                 twb.close()
                 continue
 
+            # ADD: Log which source sheet and target are being used
+            print(f"  Source sheet: '{data_sheet}', Target file: {target_file}, Target sheet: '{tsheet_name}'", file=sys.stderr)
+
             tws = twb[tsheet_name]
 
             if page_break_enabled:
@@ -186,7 +190,8 @@ def main(config=None):
                         break
 
                 if has_merged:
-                    print(f"WARNING: Merged cells detected in paste area, skipping insert_rows", file=sys.stderr)
+                    merge_ranges = [str(r) for r in tws.merged_cells.ranges if r.min_row <= paste_row + src_data_rows and r.max_row >= paste_row]
+                    print(f"WARNING: Merged cells {merge_ranges} overlap paste area (rows {paste_row}-{paste_row+src_data_rows}), skipping insert_rows", file=sys.stderr)
                 elif src_data_rows > 0:
                     tws.insert_rows(paste_row, src_data_rows)
 
@@ -220,6 +225,8 @@ def main(config=None):
                         cell = tws.cell(row=dst_row, column=dst_idx)
                         if not isinstance(cell, MergedCell):
                             cell.value = val
+                        else:
+                            print(f"  DEBUG: MergedCell at row={dst_row}, col={dst_idx} ({get_column_letter(dst_idx)}{dst_row}) — skipped", file=sys.stderr)
                     src_row += 1
                     dst_row += 1
                 paste_end = max(paste_end, dst_row)
