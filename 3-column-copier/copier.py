@@ -103,11 +103,19 @@ def main(config=None):
 
             # Step 2: Build temp columns in source
             ws = wb[data_sheet]
+
+            # Find NE_NO lookup column from first ip_lookup column for PW fill range
+            pw_lookup_col = None
+            for col_name, col_cfg in columns.items():
+                if col_cfg.get("type") == "ip_lookup":
+                    pw_lookup_col = col_cfg.get("lookup_col")
+                    break
+
             for col_name, col_cfg in columns.items():
                 col_type = col_cfg.get("type")
                 build_at = col_cfg.get("build_at", col_cfg.get("paste_to"))
                 if col_type == "planwork":
-                    build_pw_column(ws, planwork, build_at, start_row)
+                    build_pw_column(ws, planwork, build_at, start_row, lookup_col=pw_lookup_col)
                     print(f"  PW column: {build_at} = '{planwork}'")
                 elif col_type == "ip_lookup":
                     log_sheet_name = col_cfg["log_sheet"]
@@ -245,6 +253,20 @@ def main(config=None):
             twb.save(str(out_path))
             twb.close()
             print(f"  Copied to: {target_file}")
+
+            # Clean temp columns from source file
+            clean_wb = load_workbook(str(xlsx_path))
+            clean_ws = clean_wb[data_sheet]
+            cols_to_delete = []
+            for col_name, col_cfg in columns.items():
+                if col_cfg.get("type") in ("planwork", "ip_lookup"):
+                    build_at = col_cfg.get("build_at", col_cfg.get("paste_to"))
+                    cols_to_delete.append(col_letter_to_index(build_at))
+            for col_idx in sorted(cols_to_delete, reverse=True):
+                clean_ws.delete_cols(col_idx)
+            clean_wb.save(str(xlsx_path))
+            clean_wb.close()
+            print(f"  Cleaned temp columns from source", file=sys.stderr)
 
         print(f"\nDone.")
 
