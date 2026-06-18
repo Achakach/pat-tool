@@ -113,7 +113,7 @@ def _setup_a4_print(ws, print_title_rows=None):
 def _calc_page_rows(ws, config_override=None):
     """Calculate max rows fitting on one A4 page based on margins.
     Paper height = 841.89 points (A4).
-    Row height = 15 points (default Excel row height).
+    Row height = detected from worksheet row_dimensions.
     Returns integer row count. Pass config_override to bypass auto-calc."""
     if config_override is not None:
         print(f"[DEBUG] _calc_page_rows: config_override={config_override}, returning early", file=sys.stderr)
@@ -121,8 +121,9 @@ def _calc_page_rows(ws, config_override=None):
     paper_height_pts = 841.89
     margins_pts = (float(ws.page_margins.top) + float(ws.page_margins.bottom)) * 72
     printable_pts = paper_height_pts - margins_pts
-    rows = math.ceil(printable_pts / 15)
-    print(f"[DEBUG] _calc_page_rows: margins top={ws.page_margins.top} bottom={ws.page_margins.bottom}, paper=841.89, margins_pts={margins_pts}, printable_pts={printable_pts}, rows={printable_pts}/15={rows} (ceil)", file=sys.stderr)
+    row_height = _detect_row_height(ws)
+    rows = math.ceil(printable_pts / row_height)
+    print(f"[DEBUG] _calc_page_rows: margins top={ws.page_margins.top} bottom={ws.page_margins.bottom}, paper=841.89, margins_pts={margins_pts}, printable_pts={printable_pts}, row_height={row_height}, rows={printable_pts}/{row_height}={rows} (ceil)", file=sys.stderr)
     return rows
 
 
@@ -161,8 +162,9 @@ def insert_png(xlsx_path: Path, sheet_name: str, png_path: Path,
         display_h = h
 
     # Count rows this image needs (pixels → points → rows)
-    default_ht = 15
-    rows_needed = max(1, int(display_h * 0.75 / default_ht) + 1)
+    row_ht = _detect_row_height(ws)
+    height_pts = pixels_to_points(display_h)
+    rows_needed = max(1, math.ceil(height_pts / row_ht))
 
     # Snap to next page boundary (skip first site on sheet)
     if page_rows is not None and start_row > purge_from:
@@ -253,7 +255,9 @@ def insert_png_no_label(xlsx_path: Path, sheet_name: str, png_path: Path,
     else:
         display_h = h
 
-    rows_needed = max(1, int(display_h * 0.75 / 15) + 1)
+    row_ht = _detect_row_height(ws)
+    height_pts = pixels_to_points(display_h)
+    rows_needed = max(1, math.ceil(height_pts / row_ht))
 
     # Page boundary overflow guard (header_count-aware)
     if page_rows is not None:

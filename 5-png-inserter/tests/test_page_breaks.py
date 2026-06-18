@@ -175,14 +175,41 @@ class TestPageBreakConfig:
         assert result == 40
         wb.close()
 
+    def test_calc_page_rows_20pt(self):
+        """20pt explicit rows → ceil(769.89 / 20) = 39."""
+        wb = Workbook()
+        ws = wb.active
+        _setup_a4_print(ws)
+        for r in range(1, 11):
+            ws.cell(row=r, column=1).value = f"row{r}"
+            ws.row_dimensions[r].height = 20.0
+        result = _calc_page_rows(ws)
+        assert result == 39  # ceil(769.89 / 20)
+        wb.close()
+
+    def test_calc_page_rows_mixed_mode(self):
+        """Mixed heights 24pt (5 rows) + 15pt (10 rows) → mode 15 → ceil(769.89 / 15) = 52."""
+        wb = Workbook()
+        ws = wb.active
+        _setup_a4_print(ws)
+        for r in range(1, 6):
+            ws.cell(row=r, column=1).value = f"header{r}"
+            ws.row_dimensions[r].height = 24.0
+        for r in range(6, 16):
+            ws.cell(row=r, column=1).value = f"content{r}"
+            ws.row_dimensions[r].height = 15.0
+        result = _calc_page_rows(ws)
+        assert result == 52  # mode is 15 (10 rows) > ceil(769.89/15) = 52
+        wb.close()
+
     def test_a4_page_rows_absent_autocalc(self, tmp_path):
         """No a4_page_rows → _calc_page_rows returns ~51 (auto-calc)."""
         wb = Workbook()
         ws = wb.active
         _setup_a4_print(ws)
         result = _calc_page_rows(ws)
-        # A4 auto-calc with 0.5" top+bottom margins → (841.89 - 72) / 15 ≈ 51
-        assert 49 <= result <= 53
+        # A4 auto-calc with 0.5" top+bottom margins → (841.89 - 72) / 15 ≈ 52
+        assert result == 52
         wb.close()
 
     def test_auto_page_breaks_enabled(self, tmp_path):
@@ -269,15 +296,15 @@ class TestPageBreakInsertion:
         """Image near page boundary → insert_png_no_label pushes to next page."""
         output = _make_test_xlsx(tmp_path, "test.xlsx")
         png = tmp_path / "tall.png"
-        _make_test_png(png, 10, 100)  # rows_needed = max(1, int(75/15)+1) = 6
+        _make_test_png(png, 10, 100)  # rows_needed = ceil(75/15) = 5
 
         # start_row=4, page_rows=5, gap_rows=1
-        # img_end = 4+1+6 = 11, page_end = ((4-1)//5+1)*5 = 5
-        # 11 > 5 → pushed to page_end+1 = 6
+        # img_end = 4+1+5 = 10, page_end = ((4-1)//5+1)*5 = 5
+        # 10 > 5 → pushed to page_end+1 = 6
         next_row = insert_png_no_label(output, "Sheet", png, start_row=4, gap_rows=1, page_rows=5)
-        # img_row = 6+1 = 7, return = 7+6+1 = 14
+        # img_row = 6+1 = 7, return = 7+5+1 = 13
         assert next_row > 5  # image pushed past page boundary
-        assert next_row >= 12
+        assert next_row == 13
 
     def test_image_fits_no_push(self, tmp_path):
         """Image fits within page boundary → stays at original start_row."""
@@ -296,19 +323,19 @@ class TestPageBreakInsertion:
         """Third of three images overflows page → pushed to next page."""
         output = _make_test_xlsx(tmp_path, "test.xlsx")
         png = tmp_path / "med.png"
-        _make_test_png(png, 10, 60)  # rows_needed = max(1, int(45/15)+1) = 4
+        _make_test_png(png, 10, 60)  # rows_needed = ceil(45/15) = 3
 
         # page_rows=15, gap_rows=1
         r1 = insert_png_no_label(output, "Sheet", png, start_row=1, gap_rows=1, page_rows=15)
-        # img_end = 1+1+4=6, page_end=15 → stays. img_row=2, return=2+4+1=7
+        # img_end = 1+1+3=5, page_end=15 → stays. img_row=2, return=2+3+1=6
         r2 = insert_png_no_label(output, "Sheet", png, start_row=r1, gap_rows=1, page_rows=15)
-        # img_end = 7+1+4=12, page_end=15 → stays. img_row=8, return=8+4+1=13
+        # img_end = 6+1+3=10, page_end=15 → stays. img_row=7, return=7+3+1=11
         r3 = insert_png_no_label(output, "Sheet", png, start_row=r2, gap_rows=1, page_rows=15)
-        # img_end = 13+1+4=18, page_end=15. 18>15 → pushed to 16
-        # img_row=16+1=17, return=17+4+1=22
-        assert r1 == 7
-        assert r2 == 13
-        assert r3 == 22  # pushed past page boundary at row 15
+        # img_end = 11+1+3=15, page_end=15. 15>15? NO → stays
+        # img_row=12, return=12+3+1=16
+        assert r1 == 6
+        assert r2 == 11
+        assert r3 == 16
 
     def test_no_manual_breaks_with_auto(self, tmp_path):
         """Auto page breaks enabled → no manual breaks inserted."""
@@ -337,13 +364,13 @@ class TestPageBreakEdgeCases:
         """Image taller than page_rows → still inserted without crash (warning in orchestrator)."""
         output = _make_test_xlsx(tmp_path, "test.xlsx")
         png = tmp_path / "huge.png"
-        _make_test_png(png, 10, 500)  # rows_needed ≈ max(1, int(375/15)+1) = 26
+        _make_test_png(png, 10, 500)  # rows_needed = ceil(375/15) = 25
 
-        # page_rows=5, image spans ~26 rows → much taller than a page
+        # page_rows=5, image spans ~25 rows → much taller than a page
         next_row = insert_png(output, "Sheet", png, "Site1", 3, page_rows=5, purge_from=1, gap_rows=1)
         # start_row=3 > 1 → snap: ((3-2)//5+1)*5+1 = 6, snap to row 6
-        # overflow guard: img_end = 6+1+1+26 = 34 > page_end=10 → push to row 11
-        # label at 11, img at 13, return = 13+26+1 = 40
+        # overflow guard: img_end = 6+1+1+25 = 33 > page_end=10 → push to row 11
+        # label at 11, img at 13, return = 13+25+1 = 39
         assert next_row > 6  # image inserted past the page boundary
 
         wb = load_workbook(str(output))
@@ -388,12 +415,12 @@ class TestPageBreakEdgeCases:
         """Gap_rows=0 does not break overflow math."""
         output = _make_test_xlsx(tmp_path, "test.xlsx")
         png = tmp_path / "med.png"
-        _make_test_png(png, 10, 60)  # rows_needed = 4
+        _make_test_png(png, 10, 60)  # rows_needed = 3
 
         # page_rows=5, gap_rows=0, start_row=3
-        # img_end = 3+0+4 = 7, page_end = ((3-1)//5+1)*5 = 5
-        # 7 > 5 → pushed: start_row = 6
-        # img_row = 6+0 = 6, return = 6+4+0 = 10
+        # img_end = 3+0+3 = 6, page_end = ((3-1)//5+1)*5 = 5
+        # 6 > 5 → pushed: start_row = 6
+        # img_row = 6+0 = 6, return = 6+3+0 = 9
         next_row = insert_png_no_label(output, "Sheet", png, start_row=3, gap_rows=0, page_rows=5)
         assert next_row >= 9  # pushed past page boundary
 
@@ -468,12 +495,12 @@ class TestPrintTitleRows:
         """page_rows=10, header_count=2, start_row=9 → image pushed past row 10."""
         output = _make_test_xlsx(tmp_path, "test.xlsx")
         png = tmp_path / "tall.png"
-        _make_test_png(png, 10, 100)  # rows_needed = max(1, int(75/15)+1) = 6
+        _make_test_png(png, 10, 100)  # rows_needed = ceil(75/15) = 5
 
         next_row = insert_png(output, "Sheet", png, "Site1", start_row=9,
                               page_rows=10, header_count=2, purge_from=1, gap_rows=0)
 
-        assert next_row > 10  # image pushed past page boundary
+        assert next_row == 17  # label@11, img@12, return=12+5+0=17
 
         wb = load_workbook(str(output))
         ws = wb["Sheet"]
@@ -484,12 +511,12 @@ class TestPrintTitleRows:
         """Same scenario with header_count=0 → original overflow behavior preserved."""
         output = _make_test_xlsx(tmp_path, "test.xlsx")
         png = tmp_path / "tall.png"
-        _make_test_png(png, 10, 100)
+        _make_test_png(png, 10, 100)  # rows_needed = ceil(75/15) = 5
 
         next_row = insert_png(output, "Sheet", png, "Site1", start_row=9,
                               page_rows=10, header_count=0, purge_from=1, gap_rows=0)
 
-        assert next_row > 10
+        assert next_row == 17  # label@11, img@12, return=12+5+0=17
 
         wb = load_workbook(str(output))
         ws = wb["Sheet"]
@@ -546,18 +573,18 @@ class TestPrintTitleRows:
         header_count reduces content area, pushing image past page boundary."""
         output = _make_test_xlsx(tmp_path, "test.xlsx")
         png = tmp_path / "tall.png"
-        _make_test_png(png, 10, 100)  # rows_needed = max(1, int(100*0.75/15)+1) = 6
+        _make_test_png(png, 10, 100)  # rows_needed = ceil(100*0.75/15) = 5
 
         # page_rows=10, header_count=2, start_row=9, gap_rows=0
         # content_rows = 10-2 = 8
-        # img_end = 9+0+6 = 15
+        # img_end = 9+0+5 = 14
         # start_row(9) <= page_rows(10) → page_end = page_rows = 10
-        # 15 > 10 → pushed to page_end+1 = 11
-        # img_row = 11+0 = 11, return = 11+6+0 = 17
+        # 14 > 10 → pushed to page_end+1 = 11
+        # img_row = 11+0 = 11, return = 11+5+0 = 16
         next_row = insert_png_no_label(output, "Sheet", png, start_row=9,
                                         gap_rows=0, page_rows=10, header_count=2)
         assert next_row > 10  # pushed past page boundary
-        assert next_row >= 16
+        assert next_row == 16
 
     def test_full_pipeline_with_headers(self, tmp_path):
         """Multi-sheet workbook with header_count=3 — snap + overflow + multi-sheet."""

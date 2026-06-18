@@ -250,7 +250,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `feat(inserter): add _detect_row_height helper with mode-based sampling`
   - Files: `5-png-inserter/src/inserter.py`, `5-png-inserter/tests/test_page_breaks.py`
 
-- [ ] 2. Update `_calc_page_rows` test assertions (RED — TDD)
+- [x] 2. Update `_calc_page_rows` test assertions (RED — TDD)
 
   **What to do**:
   - Read `test_page_breaks.py` lines 128-136 (`test_a4_page_rows_absent_autocalc`)
@@ -328,7 +328,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `test(inserter): update _calc_page_rows assertions for detected row height`
   - Files: `5-png-inserter/tests/test_page_breaks.py`
 
-- [ ] 3. Update `insert_png` rows_needed test assertions (RED — TDD)
+- [x] 3. Update `insert_png` rows_needed test assertions (RED — TDD)
 
   **What to do**:
   - Read ALL test functions in `test_page_breaks.py` that depend on `rows_needed`:
@@ -440,7 +440,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `test(inserter): update insert_png rows_needed assertions for ceil formula`
   - Files: `5-png-inserter/tests/test_page_breaks.py`
 
-- [ ] 4. Update `insert_png_no_label` rows_needed test assertions (RED — TDD)
+- [x] 4. Update `insert_png_no_label` rows_needed test assertions (RED — TDD)
 
   **What to do**:
   - Read test functions depending on `insert_png_no_label` rows_needed:
@@ -492,7 +492,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `test(inserter): update insert_png_no_label rows_needed assertions for ceil formula`
   - Files: `5-png-inserter/tests/test_page_breaks.py`
 
-- [ ] 5. Fix `_calc_page_rows` to use detected row height (GREEN — TDD)
+- [x] 5. Fix `_calc_page_rows` to use detected row height (GREEN — TDD)
 
   **What to do**:
   - In `inserter.py`, modify `_calc_page_rows` (line 94-107):
@@ -560,7 +560,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `fix(inserter): use _detect_row_height in _calc_page_rows instead of hardcoded 15`
   - Files: `5-png-inserter/src/inserter.py`
 
-- [ ] 6. Fix `insert_png` rows_needed formula (GREEN — TDD)
+- [x] 6. Fix `insert_png` rows_needed formula (GREEN — TDD)
 
   **What to do**:
   - In `inserter.py` `insert_png` function (lines 144-146):
@@ -613,7 +613,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `fix(inserter): use pixels_to_points + detected row height in insert_png`
   - Files: `5-png-inserter/src/inserter.py`
 
-- [ ] 7. Fix `insert_png_no_label` rows_needed formula (GREEN — TDD)
+- [x] 7. Fix `insert_png_no_label` rows_needed formula (GREEN — TDD)
 
   **What to do**:
   - In `inserter.py` `insert_png_no_label` function (line 237):
@@ -664,7 +664,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `fix(inserter): use pixels_to_points + detected row height in insert_png_no_label`
   - Files: `5-png-inserter/src/inserter.py`
 
-- [ ] 8. Full test suite run + integration QA (verify everything)
+- [x] 8. Full test suite run + integration QA (verify everything)
 
   **What to do**:
   - Run full test suite: `cd 5-png-inserter && python -m pytest tests/ -v`
@@ -709,19 +709,19 @@ Max Concurrent: 4 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   Verify: `_detect_row_height` exists (MODE sampling). Hardcoded `15`/`0.75` absent from all 4 locations. `pixels_to_points()` used. `config_override` preserved. Evidence files exist.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   Run full test suite. Review for unused imports, dead code, AI slop patterns.
   Output: `Tests [N pass/N fail] | Lint [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
   Execute EVERY QA scenario from Tasks 1-8. Test edge cases: empty ws, 20pt rows, mixed heights, config override. Save to `.sisyphus/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   Verify 1:1 plan→implementation. Check "Must NOT do" compliance. Detect contamination.
   Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
