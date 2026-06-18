@@ -1,12 +1,15 @@
 # Handover — PAT Tool Sessions (Updated)
 
-> **Date**: 2026-06-18 | **Sessions**: full-pipeline-e2e ✅ | cli-integration-tests ✅ | zip-distribution ✅ | a4-print-fix ✅ | ip-lookup-fix ✅ | merged-cell-fix ✅ | merge-cell-debug ✅ | pw-fill-cleanup-fix ✅ | multi-source-append ✅
+> **Date**: 2026-06-18 | **Sessions**: full-pipeline-e2e ✅ | cli-integration-tests ✅ | zip-distribution ✅ | a4-print-fix ✅ | ip-lookup-fix ✅ | merged-cell-fix ✅ | merge-cell-debug ✅ | pw-fill-cleanup-fix ✅ | multi-source-append ✅ | insert-mode-decouple ✅ | simplify-insert-logic ✅ (reverted) | revert-to-v5-behavior ✅ | copy-cell-alignment ✅
 
 ---
 
-## ⚠️ Current Issue
+## ⚠️ Current Issues
 
-_None — the multi-source overwrite bug has been fixed (see 3.11 below)._
+| Priority | Issue | Plan |
+|----------|-------|------|
+| 🔴 HIGH | A4 page break: images break across pages due to hardcoded row height (15pt) and pixel ratio (0.75) | `.sisyphus/plans/fix-a4-row-calc.md` |
+| 🟡 MEDIUM | Image anchors don't shift with insert_rows in tool 3 | `.sisyphus/plans/shift-image-anchors.md` |
 
 ---
 
@@ -14,9 +17,11 @@ _None — the multi-source overwrite bug has been fixed (see 3.11 below)._
 
 | Priority | Task | Plan |
 |----------|------|------|
+| 🔴 NOW | Fix A4 page break row calculation in tool 5 | `.sisyphus/plans/fix-a4-row-calc.md` |
 | 🟡 Later | Fix `_parse_print_title_rows` bug in tool 5 | Not planned |
 | 🟡 Later | Unify 3 matching.xlsx parsers | Not planned |
 | 🟡 Later | Unify config injection across tools | Not planned |
+| 🟡 Later | Shift image anchors on insert_rows in tool 3 | `.sisyphus/plans/shift-image-anchors.md` |
 
 ---
 
@@ -32,89 +37,81 @@ run.py orchestrates 5 tools sequentially via pipeline.json:
 5-png-inserter      inserts PNGs into XLSX → FINAL OUTPUT
 ```
 
-Each tool is self-contained: `src/` for library code, `tests/` for pytest, `config.json` for settings. Dependencies: openpyxl, Pillow, pytest.
+---
+
+## 2. Test Coverage
+
+| Tool | Tests |
+|------|-------|
+| 1-png-extractor | 38 |
+| 2-template-generator | 15 |
+| 3-column-copier | **41** (+3 from original: insert_mode tests) |
+| 4-cell-editor | 15 |
+| 5-png-inserter | 51 |
+| run.py | 5 |
+| Pipeline E2E | 1 |
+| **Total** | **166** |
 
 ---
 
-## 2. Test Coverage — Current State
+## 3. Tool 3 — Current Behavior
 
-| Tool | Tests | Notes |
-|------|-------|-------|
-| 1-png-extractor | 38 | unchanged |
-| 2-template-generator | 15 | unchanged |
-| 3-column-copier | **38** | +1 merged cell skip test, +multi-record fixtures |
-| 4-cell-editor | 15 | unchanged |
-| 5-png-inserter | 51 | unchanged |
-| run.py | 5 | unchanged |
-| Pipeline E2E | 1 | unchanged |
-| **Total** | **163** | |
+### Config (`3-column-copier/config.json`)
+```json
+"paste_mode": "append",
+"insert_mode": true,
+"page_break_enabled": false,
+"paste_start_row": 3
+```
 
----
+### Copy Logic (in order)
+```
+1. Multi-source: check output folder, load existing output if present
+2. Blank row scan: find first completely empty row → paste_row (append mode)
+3. Insert gate: paste_mode=="append" AND (page_break_enabled OR insert_mode)
+4. Merged cell check: if overlap → WARNING + skip insert_rows
+5. Paste: copy values with force center alignment
+6. Cleanup: delete temp columns (Q,R,S) right-to-left
+```
 
-## 3. What We Fixed (This Session)
-
-### 3.8 merged-cell-fix ✅
-**Problem**: `AttributeError: 'MergedCell' object attribute 'value' is read-only` at `copier.py:219` when target XLSX has merged cells.
-
-**Fix**: Imported `MergedCell` from openpyxl, added `isinstance(cell, MergedCell)` guard before writing. Merged sub-cells are skipped (not overwritten), normal cells write normally. Added `test_paste_skips_merged_cells`.
-
-**Files**: `copier.py` (+2 lines import + guard), `test_columns.py` (+1 test, 38/38 pass)
-
-### 3.9 merge-cell-debug ✅
-**Problem**: No visibility into where merged cells exist when the fix fires.
-
-**Fix**: Added 3 debug prints to stderr:
-- Source/target sheet info per file
-- Which merge ranges overlap paste area (during insert_rows check)
-- Exact cell position when MergedCell is skipped (row, column letter)
-
-**Files**: `copier.py` (+8 lines)
-
-### 3.10 pw-fill-cleanup-fix ✅
-**Problem 1**: PW column filled ALL rows with any data (e.g., 50+ rows) instead of stopping where NE_NO data ends (e.g., 16 rows).
-
-**Fix**: `build_pw_column` now accepts `lookup_col` parameter. When provided, stops filling when that column is empty (not when ALL columns are empty). Ties PW range to NE_NO data boundary.
-
-**Problem 2**: Temp columns (Q=PW, R=IP1, S=IP2) stayed permanently in source files after copy. Accumulated across runs.
-
-**Fix**: After copy completes, auto-deletes build_at columns from source right-to-left (S→R→Q to avoid index shift). Source files restored to original state.
-
-**Test fixtures**: Created 3 multi-record source files:
-- `multi-record-source.xlsx` (E2E003, 16 rows, tests empty IP + no-NE_NO cases)
-- `multi-record-source-2.xlsx` (E2E004, 8 rows, tests missing IP1)
-- `multi-record-source-3.xlsx` (E2E005, 5 rows, all IPs found)
-- Target: `e2e_v3_target.xlsx` with "IP & Port Assignment" sheet
-
-**Files**: `columns.py` (+lookup_col param), `copier.py` (+pass lookup_col, +auto-cleanup, 38/38 pass)
-
-### 3.11 multi-source-append ✅
-**Problem**: When multiple source files mapped to the same target XLSX, the copier loaded the clean template from `target_folder/` for each source — overwriting previous output. Only the last source's data survived.
-
-**Example**: E2E004 (8 rows), E2E005 (5 rows), E2E003 (16 rows) all mapped to `e2e_v3_target.xlsx`. Output had only 16 rows instead of 29.
-
-**Fix**: Before loading the target workbook, check if output already exists in `output_folder/`. If it does, use that as the target instead of the fresh template. First source uses template, subsequent sources accumulate into existing output.
-
-**Files**: `copier.py` (+5 lines: output existence check at line 143)
-**Verification**: All 38 tests pass. Append mode continues to find first blank row and accumulates correctly.
-
-### 3.12 scan-merges.py ✅
-Diagnostic tool to scan any XLSX for merged cells across all sheets. Usage: `python scan-merges.py path.xlsx`
+### Key Behaviors
+| Feature | How |
+|---------|-----|
+| Multi-source append | Before loading target, check if output exists. If yes, use it as base. |
+| Insert rows | Gated by OR: `page_break_enabled OR insert_mode`. Counts source rows, inserts at paste_row. |
+| Blank row scan | Scans ALL columns for emptiness. Steps past non-empty rows. |
+| Merged cell safety | If merged cells overlap paste range → WARNING + skip insert. Does NOT crash. |
+| Cell alignment | All pasted cells forced to `horizontal='center', vertical='center'`. Source alignment ignored. |
+| IP lookup | Regex `([^_]+)_(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})` on log sheet row 1. |
+| PW fill range | Tied to NE_NO column via `lookup_col`. Stops where NE_NO ends. |
+| Temp column cleanup | Auto-deletes Q,R,S right-to-left after copy. |
+| MergedCell guard | Paste loop skips `MergedCell` instances (doesn't crash). |
 
 ---
 
-## 4. Key Discoveries (Deep Audit)
+## 4. What We Fixed
 
-### 4.1 Source files missing log sheet
-`demo_source.xlsx` only has `['cutsheet', 'PW 999']` — no `Get Log Before&After` sheet. IP lookup crashes with `KeyError`. User wants crash (not silent skip) so they know something is wrong.
+### 4.1 multi-source-append ✅
+When multiple source files map to the same target, each source loads the clean template — overwriting previous output. Fix: check if output already exists, use it as base. First source uses template, subsequent sources accumulate.
 
-### 4.2 Target files missing correct sheet name
-All target files in `3-column-copier/target/` have a sheet named `"Sheet"` but config expects `"IP & Port Assignment"`. Sheet matching uses `clean_sheet_name()` which normalizes names — "Sheet" cleans to "sheet", "IP & Port Assignment" cleans to "ip & port assignment". They don't match → every file gets SKIP.
+### 4.2 insert-mode-decouple ✅
+`insert_rows` was gated behind `page_break_enabled` — couldn't insert without A4 formatting. Fix: added `insert_mode` config key. Gate changed to `(page_break_enabled OR insert_mode)`.
 
-### 4.3 PW fills too far (root cause)
-`build_pw_column` and `build_ip_column` both use `for c in range(1, ws.max_column + 1)` to check row emptiness. If column A has data in row 50, PW fills all 50 rows — even if NE_NO data stops at row 16. Fixed in 3.10 (pw-fill-cleanup-fix).
+### 4.3 simplify-insert-logic (reverted) ✅
+Removed blank scan, merged check, paste_mode to simplify. User preferred V5 behavior — reverted.
 
-### 4.4 Cleanup was broken (left-to-right bug)
-Old cleanup deleted columns Q→R→S left-to-right. `delete_cols` shifts remaining columns left after each delete. After Q removed, original R shifts to Q's position, original S shifts to R's. Then `delete_cols(18)` deletes what was originally S. Result: R survived, wrong column deleted. Fixed in 3.10 by deleting right-to-left.
+### 4.4 revert-to-v5-behavior ✅
+Restored blank row scan, merged cell skip, paste_mode config. Kept multi-source append and insert_mode decoupling.
+
+### 4.5 copy-cell-alignment ✅
+Changed from copying source alignment to force center-aligning all pasted cells: `Alignment(horizontal='center', vertical='center')`.
+
+### Previous fixes (from prior sessions)
+- merged-cell-fix: MergedCell guard in paste loop
+- merge-cell-debug: Debug logging for merged cell positions
+- pw-fill-cleanup-fix: PW column tied to NE_NO data boundary + temp column cleanup
+- ip-lookup-fix: IP regex handles wrapped formats
+- a4-print-fix: Defensive try/except on autoPageBreaks
 
 ---
 
@@ -122,11 +119,11 @@ Old cleanup deleted columns Q→R→S left-to-right. `delete_cols` shifts remain
 
 | Issue | Severity | Detail |
 |-------|----------|--------|
-| Multi-source overwrite | ✅ FIXED | `copier.py` now checks for existing output in `output_folder/` before loading template (session: multi-source-append) |
-| A4 print code diverged (tools 3 & 5) | 🟡 MEDIUM | `_parse_print_title_rows` returns wrong value in tool 5; tool 5 still has global `_a4_print_setup_done` guard; duplicated function |
-| Three matching.xlsx parsers | 🟡 MEDIUM | Tool 2 (inline, returns `list[str]`), Tool 3 (`copier.py` — `{pw→filename}`), Tool 5 (`matcher.py` — `{filename→[pw]}`) |
+| A4 page break row calc | 🔴 HIGH | `_calc_page_rows` and `insert_png` use hardcoded 15pt row height + 0.75 pixel ratio. Causes image break across pages. Plan: `.sisyphus/plans/fix-a4-row-calc.md` |
+| Image anchor shift | 🟡 MEDIUM | openpyxl `insert_rows` doesn't shift image anchors. Images stay frozen while cells move. Plan: `.sisyphus/plans/shift-image-anchors.md` |
+| A4 print code diverged | 🟡 MEDIUM | `_parse_print_title_rows` duplicated between tools 3 & 5; tool 5 has global `_a4_print_setup_done` guard |
+| Three matching.xlsx parsers | 🟡 MEDIUM | Tool 2 (inline, `list[str]`), Tool 3 (`{pw→filename}`), Tool 5 (`{filename→[pw]}`) |
 | Config injection not unified | 🟡 MEDIUM | All 5 tools accept `main(config=None)` but path resolution differs |
-| No log sheet in demo source | 🟡 LOW | `demo_source.xlsx` missing log sheet — crash is correct per user |
 
 ---
 
@@ -137,7 +134,7 @@ pip install -r requirements.txt
 python run.py                     # full pipeline
 
 # Per-tool tests
-cd 3-column-copier && python -m pytest tests/ -v       # 38
+cd 3-column-copier && python -m pytest tests/ -v       # 41
 cd 5-png-inserter && python -m pytest tests/ -v        # 51
 python -m pytest tests/test_run.py tests/test_pipeline_e2e.py -v  # 6
 
@@ -155,9 +152,12 @@ python scan-merges.py path/to/file.xlsx
 | Matching format | matching.xlsx: Site + PW Number columns, blank Site inherits |
 | PNG naming | `PW {planwork}_{prefix} {site}_{label}.png` |
 | Tool 3 output | `./output` |
-| IP lookup | Uses regex `([^_]+)_(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})` |
-| A4 print | Defensive try/except on `autoPageBreaks` + gated behind `page_break_enabled` |
-| MergedCell fix | `isinstance(cell, MergedCell)` guard at paste point |
+| Tool 3 paste | Force center-aligned, values only (no formatting) |
+| IP lookup | Regex `([^_]+)_(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})` on log sheet row 1 |
+| Multi-source | Checks output folder; loads existing output as base if present |
+| Insert mode | `insert_mode: true` enables row insertion independently of page breaks |
+| Blank scan | Append mode scans all columns for completely empty rows |
+| Merged cells | WARNING + skip insert (doesn't crash); paste loop skips MergedCell |
 | PW fill range | Tied to NE_NO column via `lookup_col` parameter |
 | Temp column cleanup | Auto-deletes Q,R,S right-to-left after copy |
 | Debug logging | Stderr: file/sheet info, merge overlap warnings, MergedCell skip positions |
