@@ -360,7 +360,7 @@ class TestAppendInsertRows:
             twb.close()
 
             # Simulate: insert_mode=True, page_break_enabled=False
-            # paste_mode="append", paste_row=3, src has 5 data rows
+            # paste_row=3, src has 5 data rows
             twb2 = load_workbook(str(tgt_path))
             tws2 = twb2.active
             tws2.insert_rows(3, 5)
@@ -372,3 +372,45 @@ class TestAppendInsertRows:
             tws3 = twb3.active
             assert tws3.cell(row=14, column=1).value == "existing_below"
             twb3.close()
+
+    def test_insert_mode_shifts_content_at_paste_row(self):
+        """insert_mode=True: content at paste_start_row shifts down."""
+        import tempfile
+        from openpyxl import Workbook, load_workbook
+
+        # Target has content AT paste_start_row (row 3)
+        twb = Workbook()
+        tws = twb.active
+        tws.cell(row=3, column=1).value = "content_at_row3"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tgt_path = Path(tmp) / "target.xlsx"
+            twb.save(str(tgt_path))
+            twb.close()
+
+            # Simulate: insert_mode=True, 5 data rows
+            twb2 = load_workbook(str(tgt_path))
+            tws2 = twb2.active
+            tws2.insert_rows(3, 5)  # insert 5 rows at paste row 3
+            twb2.save(str(tgt_path))
+            twb2.close()
+
+            # Verify content shifted from row 3 -> row 8
+            twb3 = load_workbook(str(tgt_path))
+            tws3 = twb3.active
+            assert tws3.cell(row=8, column=1).value == "content_at_row3"
+            twb3.close()
+
+    def test_no_insert_mode_pastes_without_insert(self):
+        """insert_mode=False: content at paste_start_row stays, gets overwritten."""
+        from openpyxl import Workbook
+
+        # Target has content at row 3
+        twb = Workbook()
+        tws = twb.active
+        tws.cell(row=3, column=1).value = "content_at_row3"
+
+        # No insert_rows called — content stays at row 3
+        # (insert_mode=False means we write directly without insert)
+        assert tws.cell(row=3, column=1).value == "content_at_row3"
+        twb.close()

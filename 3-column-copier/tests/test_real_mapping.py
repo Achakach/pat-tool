@@ -15,7 +15,7 @@ class TestRealMapping:
     def test_full_pipeline_with_page_break(self, tmp_path, monkeypatch):
         # 1. Generate test data via subprocess call to generator
         result = subprocess.run([
-            sys.executable, "tests/generate_test_data.py",
+            sys.executable, str(Path(__file__).parent / "generate_test_data.py"),
             "--tmp-dir", str(tmp_path)
         ], capture_output=True, text=True)
         assert result.returncode == 0, f"Generator failed:\n{result.stderr}"
@@ -72,7 +72,7 @@ class TestRealMapping:
             "target_folder": str(tmp_path),
             "output_folder": str(tmp_path / "output"),
             "action": "copy",
-            "paste_mode": "append",
+            "insert_mode": True,
             "page_break_enabled": True,
             "a4_page_rows": 52,
             "print_title_rows": None

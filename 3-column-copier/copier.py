@@ -69,7 +69,6 @@ def main(config=None):
     target_sheet_name = config["target_sheet"]
     start_row = config["source_start_row"]
     paste_row = config["paste_start_row"]
-    paste_mode = config.get("paste_mode", "overwrite")
     columns = config["columns"]
 
     # Parse print config
@@ -170,23 +169,8 @@ def main(config=None):
             swb = load_workbook(str(xlsx_path))
             sws = swb[data_sheet]
 
-            # If append mode, find first blank row in target sheet
-            if paste_mode == "append":
-                actual_row = paste_row
-                max_row_check = tws.max_row + 100
-                while actual_row < max_row_check:
-                    empty = True
-                    for c in range(1, tws.max_column + 1):
-                        if tws.cell(row=actual_row, column=c).value is not None:
-                            empty = False
-                            break
-                    if empty:
-                        break
-                    actual_row += 1
-                paste_row = actual_row
-
             # Append mode: insert rows to push existing content down
-            if paste_mode == "append" and (page_break_enabled or insert_mode):
+            if insert_mode:
                 # Count source data rows
                 src_data_rows = 0
                 check_row = start_row
@@ -198,17 +182,7 @@ def main(config=None):
                     src_data_rows += 1
                     check_row += 1
 
-                # Check for merged cells in paste range
-                has_merged = False
-                for merged_range in tws.merged_cells.ranges:
-                    if merged_range.min_row <= paste_row + src_data_rows and merged_range.max_row >= paste_row:
-                        has_merged = True
-                        break
-
-                if has_merged:
-                    merge_ranges = [str(r) for r in tws.merged_cells.ranges if r.min_row <= paste_row + src_data_rows and r.max_row >= paste_row]
-                    print(f"WARNING: Merged cells {merge_ranges} overlap paste area (rows {paste_row}-{paste_row+src_data_rows}), skipping insert_rows", file=sys.stderr)
-                elif src_data_rows > 0:
+                if src_data_rows > 0:
                     tws.insert_rows(paste_row, src_data_rows)
 
             paste_end = paste_row  # track max row reached across all columns
@@ -227,7 +201,7 @@ def main(config=None):
                 src_idx = col_letter_to_index(src_col)
                 dst_idx = col_letter_to_index(dst_col)
                 src_row = start_row
-                dst_row = paste_row if paste_mode == "append" else min(start_row, paste_row)
+                dst_row = paste_row
                 while True:
                     row_empty = True
                     for c in range(1, sws.max_column + 1):
