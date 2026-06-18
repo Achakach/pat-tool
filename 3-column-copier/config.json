@@ -57,9 +57,10 @@
   "target_folder": "./target",
   "output_folder": "./output",
   "action": "copy",
+  "paste_mode": "append",
   "insert_mode": true,
   "page_break_enabled": false,
   "a4_page_rows": null,
   "print_title_rows": null,
-  "_comment_print": "Set page_break_enabled: true to enable A4 page break protection. Set insert_mode: true to insert rows when inserting (push existing content down). Set print_title_rows to '1:3' to repeat header rows."
+  "_comment_print": "Set page_break_enabled: true to enable A4 page break protection. Set insert_mode: true to insert rows when appending (push existing content down). Set print_title_rows to '1:3' to repeat header rows."
 }

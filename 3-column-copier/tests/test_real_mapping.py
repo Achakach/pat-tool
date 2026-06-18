@@ -72,7 +72,7 @@ class TestRealMapping:
             "target_folder": str(tmp_path),
             "output_folder": str(tmp_path / "output"),
             "action": "copy",
-            "insert_mode": True,
+            "paste_mode": "append",
             "page_break_enabled": True,
             "a4_page_rows": 52,
             "print_title_rows": None
