@@ -10,6 +10,7 @@ from openpyxl.worksheet.pagebreak import Break
 from src.inserter import (
     _calc_page_rows,
     _clear_page_breaks,
+    _detect_row_height,
     _setup_a4_print,
     insert_png,
     insert_png_no_label,
@@ -46,6 +47,55 @@ def _make_test_xlsx(tmp_path, name="test.xlsx"):
     wb.save(str(path))
     wb.close()
     return path
+
+
+# ============================================================
+# Task 1 — _detect_row_height Tests (4 tests)
+# ============================================================
+
+class TestDetectRowHeight:
+    """Tests for _detect_row_height helper function."""
+
+    def test_all_explicit_20pt_returns_20(self):
+        """All rows at 20pt → mode = 20.0."""
+        wb = Workbook()
+        ws = wb.active
+        for r in range(1, 11):
+            ws.cell(row=r, column=1).value = f"row{r}"
+            ws.row_dimensions[r].height = 20.0
+        assert _detect_row_height(ws) == 20.0
+        wb.close()
+
+    def test_mixed_returns_mode_15(self):
+        """5 rows at 24pt + 10 rows at 15pt → mode = 15.0."""
+        wb = Workbook()
+        ws = wb.active
+        for r in range(1, 6):
+            ws.cell(row=r, column=1).value = f"header{r}"
+            ws.row_dimensions[r].height = 24.0
+        for r in range(6, 16):
+            ws.cell(row=r, column=1).value = f"content{r}"
+            ws.row_dimensions[r].height = 15.0
+        assert _detect_row_height(ws) == 15.0
+        wb.close()
+
+    def test_no_explicit_returns_fallback(self):
+        """No explicit heights set → fallback to DEFAULT_ROW_HEIGHT (15.0)."""
+        wb = Workbook()
+        ws = wb.active
+        for r in range(1, 11):
+            ws.cell(row=r, column=1).value = f"row{r}"
+            # Do NOT set row_dimensions height — stays None
+        assert _detect_row_height(ws) == 15.0
+        wb.close()
+
+    def test_empty_worksheet_returns_fallback(self):
+        """Empty worksheet (no rows) → fallback to DEFAULT_ROW_HEIGHT (15.0)."""
+        wb = Workbook()
+        ws = wb.active
+        # No data rows at all — max_row should be 0 or 1 with no data
+        assert _detect_row_height(ws) == 15.0
+        wb.close()
 
 
 # ============================================================
@@ -142,6 +192,19 @@ class TestPageBreakConfig:
         _setup_a4_print(ws)
         assert ws.page_setup.autoPageBreaks is True
         wb.close()
+
+    def test_no_crash_on_missing_page_setup_pr(self, tmp_path):
+        """_setup_a4_print should not crash when worksheet XML lacks pageSetupPr."""
+        fixture = Path(__file__).parent / "fixtures" / "no_page_setup_pr.xlsx"
+        wb = load_workbook(str(fixture))
+        ws = wb.active
+        try:
+            _setup_a4_print(ws)
+            passed = True
+        except AttributeError:
+            passed = False
+        wb.close()
+        assert passed, "_setup_a4_print crashed with AttributeError on fixture"
 
     def test_clear_page_breaks_empties_brk(self, tmp_path):
         """_clear_page_breaks clears all existing manual breaks."""

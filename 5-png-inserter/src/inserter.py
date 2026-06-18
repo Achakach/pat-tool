@@ -9,6 +9,25 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.worksheet.pagebreak import Break
 import math
 import sys
+from collections import Counter
+from openpyxl.utils.units import pixels_to_points, DEFAULT_ROW_HEIGHT
+
+
+def _detect_row_height(ws, fallback=None):
+    """Sample row heights from existing rows. Returns MODE of explicit heights.
+    Falls back to DEFAULT_ROW_HEIGHT if no explicit heights found."""
+    if fallback is None:
+        fallback = DEFAULT_ROW_HEIGHT
+    heights = []
+    for r in range(1, ws.max_row + 1):
+        h = ws.row_dimensions[r].height
+        if h is not None:
+            heights.append(h)
+    if not heights:
+        return fallback
+    # Use mode (most common height), not mean
+    return Counter(heights).most_common(1)[0][0]
+
 
 _a4_print_setup_done = False
 
@@ -76,7 +95,10 @@ def _setup_a4_print(ws, print_title_rows=None):
     global _a4_print_setup_done
     ws.page_setup.paperSize = 9
     ws.page_setup.orientation = 'portrait'
-    ws.page_setup.autoPageBreaks = True
+    try:
+        ws.page_setup.autoPageBreaks = True
+    except AttributeError:
+        print("[WARNING] Could not set autoPageBreaks: worksheet XML missing pageSetupPr element", file=sys.stderr)
     ws.page_margins.left = 0.25
     ws.page_margins.right = 0.25
     ws.page_margins.top = 0.5
@@ -84,7 +106,7 @@ def _setup_a4_print(ws, print_title_rows=None):
     if print_title_rows is not None:
         ws.print_title_rows = print_title_rows
     if not _a4_print_setup_done:
-        print(f"[DEBUG] _setup_a4_print: setting A4 portrait, margins L=0.25 R=0.25 T=0.5 B=0.5, autoPageBreaks=False, print_title_rows={print_title_rows}", file=sys.stderr)
+        print(f"[DEBUG] _setup_a4_print: setting A4 portrait, margins L=0.25 R=0.25 T=0.5 B=0.5, autoPageBreaks=True, print_title_rows={print_title_rows}", file=sys.stderr)
         _a4_print_setup_done = True
 
 
