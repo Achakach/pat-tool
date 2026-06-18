@@ -1,16 +1,12 @@
 # Handover — PAT Tool Sessions (Updated)
 
-> **Date**: 2026-06-17 | **Sessions**: full-pipeline-e2e ✅ | cli-integration-tests ✅ | zip-distribution ✅ | a4-print-fix ✅ | ip-lookup-fix ✅ | merged-cell-fix ✅ | merge-cell-debug ✅ | pw-fill-cleanup-fix ✅
+> **Date**: 2026-06-18 | **Sessions**: full-pipeline-e2e ✅ | cli-integration-tests ✅ | zip-distribution ✅ | a4-print-fix ✅ | ip-lookup-fix ✅ | merged-cell-fix ✅ | merge-cell-debug ✅ | pw-fill-cleanup-fix ✅ | multi-source-append ✅
 
 ---
 
 ## ⚠️ Current Issue
 
-When multiple source files map to the same target, the copier **overwrites** instead of **appending**. Each source loads the clean template from `target/`, writes output, but if 3 sources map to the same file, only the last one survives.
-
-**Example**: E2E004 (8 rows), E2E005 (5 rows), E2E003 (16 rows) all target `e2e_v3_target.xlsx`. Output only has 16 rows (E2E003's data). Expected: 29 rows total.
-
-**Fix plan ready**: `.sisyphus/plans/multi-source-append.md` — check if output already exists, load that as target instead of fresh template. Run `/start-work multi-source-append` to execute.
+_None — the multi-source overwrite bug has been fixed (see 3.11 below)._
 
 ---
 
@@ -18,7 +14,6 @@ When multiple source files map to the same target, the copier **overwrites** ins
 
 | Priority | Task | Plan |
 |----------|------|------|
-| 🔴 NOW | Fix multi-source append (overwrite → accumulate) | `.sisyphus/plans/multi-source-append.md` |
 | 🟡 Later | Fix `_parse_print_title_rows` bug in tool 5 | Not planned |
 | 🟡 Later | Unify 3 matching.xlsx parsers | Not planned |
 | 🟡 Later | Unify config injection across tools | Not planned |
@@ -92,7 +87,17 @@ Each tool is self-contained: `src/` for library code, `tests/` for pytest, `conf
 
 **Files**: `columns.py` (+lookup_col param), `copier.py` (+pass lookup_col, +auto-cleanup, 38/38 pass)
 
-### 3.11 scan-merges.py ✅
+### 3.11 multi-source-append ✅
+**Problem**: When multiple source files mapped to the same target XLSX, the copier loaded the clean template from `target_folder/` for each source — overwriting previous output. Only the last source's data survived.
+
+**Example**: E2E004 (8 rows), E2E005 (5 rows), E2E003 (16 rows) all mapped to `e2e_v3_target.xlsx`. Output had only 16 rows instead of 29.
+
+**Fix**: Before loading the target workbook, check if output already exists in `output_folder/`. If it does, use that as the target instead of the fresh template. First source uses template, subsequent sources accumulate into existing output.
+
+**Files**: `copier.py` (+5 lines: output existence check at line 143)
+**Verification**: All 38 tests pass. Append mode continues to find first blank row and accumulates correctly.
+
+### 3.12 scan-merges.py ✅
 Diagnostic tool to scan any XLSX for merged cells across all sheets. Usage: `python scan-merges.py path.xlsx`
 
 ---
@@ -117,7 +122,7 @@ Old cleanup deleted columns Q→R→S left-to-right. `delete_cols` shifts remain
 
 | Issue | Severity | Detail |
 |-------|----------|--------|
-| Multi-source overwrite | 🔴 CRITICAL | Multiple sources targeting same file overwrite each other — plan at `.sisyphus/plans/multi-source-append.md` |
+| Multi-source overwrite | ✅ FIXED | `copier.py` now checks for existing output in `output_folder/` before loading template (session: multi-source-append) |
 | A4 print code diverged (tools 3 & 5) | 🟡 MEDIUM | `_parse_print_title_rows` returns wrong value in tool 5; tool 5 still has global `_a4_print_setup_done` guard; duplicated function |
 | Three matching.xlsx parsers | 🟡 MEDIUM | Tool 2 (inline, returns `list[str]`), Tool 3 (`copier.py` — `{pw→filename}`), Tool 5 (`matcher.py` — `{filename→[pw]}`) |
 | Config injection not unified | 🟡 MEDIUM | All 5 tools accept `main(config=None)` but path resolution differs |
