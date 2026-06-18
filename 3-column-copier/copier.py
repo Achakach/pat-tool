@@ -140,6 +140,12 @@ def main(config=None):
                 print(f"  SKIP: Target not found: {target_file}")
                 continue
 
+            # If output already exists, use it as base to accumulate data
+            out_path = output_folder / target_file
+            if out_path.exists():
+                target_path = out_path
+                print(f"  APPEND: Using existing output as base ({target_file})")
+
             # Step 4: Open target, copy columns
             twb = load_workbook(str(target_path))
             tsheet_name = find_matching_sheet(twb, target_sheet_name)
