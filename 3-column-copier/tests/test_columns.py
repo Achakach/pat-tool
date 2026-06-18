@@ -344,3 +344,31 @@ class TestAppendInsertRows:
         assert ws.cell(row=21, column=2).value == "col2"
 
         wb.close()
+
+    def test_insert_mode_without_page_break(self):
+        """insert_mode=True triggers insert_rows even when page_break_enabled=False."""
+        from openpyxl import Workbook, load_workbook
+
+        # Setup target: content at row 9
+        twb = Workbook()
+        tws = twb.active
+        tws.cell(row=9, column=1).value = "existing_below"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tgt_path = Path(tmp) / "target.xlsx"
+            twb.save(str(tgt_path))
+            twb.close()
+
+            # Simulate: insert_mode=True, page_break_enabled=False
+            # paste_mode="append", paste_row=3, src has 5 data rows
+            twb2 = load_workbook(str(tgt_path))
+            tws2 = twb2.active
+            tws2.insert_rows(3, 5)
+            twb2.save(str(tgt_path))
+            twb2.close()
+
+            # Verify content shifted from row 9 → row 14
+            twb3 = load_workbook(str(tgt_path))
+            tws3 = twb3.active
+            assert tws3.cell(row=14, column=1).value == "existing_below"
+            twb3.close()

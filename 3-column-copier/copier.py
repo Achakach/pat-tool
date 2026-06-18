@@ -76,6 +76,8 @@ def main(config=None):
     print_title_rows_raw = config.get("print_title_rows")
     header_count, print_title_rows_str = _parse_print_title_rows(print_title_rows_raw)
     page_break_enabled = config.get("page_break_enabled", False)
+    # insert_mode: push content down on append, independent of page formatting
+    insert_mode = config.get("insert_mode", False)
 
     output_folder.mkdir(parents=True, exist_ok=True)
 
@@ -184,7 +186,7 @@ def main(config=None):
                 paste_row = actual_row
 
             # Append mode: insert rows to push existing content down
-            if paste_mode == "append" and page_break_enabled:
+            if paste_mode == "append" and (page_break_enabled or insert_mode):
                 # Count source data rows
                 src_data_rows = 0
                 check_row = start_row
