@@ -5,6 +5,7 @@ import sys
 import json
 import shutil
 import re
+from copy import copy
 from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.cell.cell import MergedCell
@@ -236,11 +237,13 @@ def main(config=None):
                             break
                     if row_empty and src_row > start_row:
                         break
-                    val = sws.cell(row=src_row, column=src_idx).value
+                    src_cell = sws.cell(row=src_row, column=src_idx)
+                    val = src_cell.value
                     if val is not None:
                         cell = tws.cell(row=dst_row, column=dst_idx)
                         if not isinstance(cell, MergedCell):
                             cell.value = val
+                            cell.alignment = copy(src_cell.alignment)
                         else:
                             print(f"  DEBUG: MergedCell at row={dst_row}, col={dst_idx} ({get_column_letter(dst_idx)}{dst_row}) — skipped", file=sys.stderr)
                     src_row += 1
