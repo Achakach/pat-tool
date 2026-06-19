@@ -15,6 +15,7 @@ from src.columns import (
     find_matching_sheet, clean_sheet_name
 )
 from src.print_setup import _setup_a4_print, _calc_page_rows, _parse_print_title_rows, snap_gap_rows
+from src.images import shift_image_anchors
 
 
 def read_matching(file_path, sheet_name, filename_col, planwork_col):
@@ -214,6 +215,7 @@ def main(config=None):
                     print(f"WARNING: Merged cells {merge_ranges} overlap paste area (rows {paste_row}-{paste_row+src_data_rows}), skipping insert_rows", file=sys.stderr)
                 elif src_data_rows > 0:
                     tws.insert_rows(paste_row, src_data_rows)
+                    shift_image_anchors(tws, paste_row, src_data_rows)
 
             paste_end = paste_row  # track max row reached across all columns
             for col_name, col_cfg in columns.items():
@@ -258,6 +260,7 @@ def main(config=None):
                 gap = snap_gap_rows(paste_end, tws, page_rows, header_count)
                 if gap > 0:
                     tws.insert_rows(paste_end, gap)
+                    shift_image_anchors(tws, paste_end, gap)
                     print(f"  Snapped: inserted {gap} gap rows at row {paste_end} to push content to page boundary", file=sys.stderr)
 
             swb.close()
