@@ -35,6 +35,10 @@ def shift_image_anchors(ws, insert_at_row, num_rows):
     if num_rows <= 0:
         return
 
+    # Guard: invalid insert row
+    if insert_at_row < 1:
+        return
+
     # Guard: no images on sheet
     if not hasattr(ws, '_images'):
         return
