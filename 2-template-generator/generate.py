@@ -8,21 +8,18 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 
-def main():
-    config_path = Path(__file__).parent / "config.json"
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
-
-    matching_file = Path(config["matching_file"])
-    template_file = Path(config["template"])
-    output_folder = Path(config["output_folder"])
-
-    if not matching_file.is_absolute():
-        matching_file = (Path(__file__).parent / matching_file).resolve()
-    if not template_file.is_absolute():
-        template_file = (Path(__file__).parent / template_file).resolve()
-    if not output_folder.is_absolute():
-        output_folder = (Path(__file__).parent / output_folder).resolve()
+def main(config=None):
+    if config is None:
+        config_path = Path(__file__).parent / "config.json"
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        matching_file = (Path(__file__).parent / config["matching_file"]).resolve()
+        template_file = (Path(__file__).parent / config["template"]).resolve()
+        output_folder = (Path(__file__).parent / config["output_folder"]).resolve()
+    else:
+        matching_file = Path(config["matching_file"]).resolve()
+        template_file = Path(config["template"]).resolve()
+        output_folder = Path(config["output_folder"]).resolve()
 
     if not matching_file.exists():
         print(f"Matching file not found: {matching_file}", file=sys.stderr)
@@ -45,8 +42,7 @@ def main():
 
     fn_col = headers.get(config["filename_col"].lower())
     if fn_col is None:
-        print(f"Column '{config['filename_col']}' not found in matching file headers", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError(f"Column '{config['filename_col']}' not found in headers (row 1)")
 
     filenames = []
     current_filename = None
