@@ -4,6 +4,8 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 from openpyxl import Workbook, load_workbook
 
 # Import copier main (conftest.py adds to sys.path)
@@ -127,3 +129,29 @@ class TestRealMapping:
         assert cs.cell(row=3, column=7).value == "CR30SDA", "source col G unchanged"
         assert cs.cell(row=3, column=8).value == "2/1/1", "source col H unchanged"
         s.close()
+
+
+def test_read_matching_missing_filename_col(tmp_path):
+    """read_matching must raise ValueError when filename_col header is missing."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "match"
+    ws["A1"] = "PW Number"
+    path = tmp_path / "matching.xlsx"
+    wb.save(str(path))
+    wb.close()
+    with pytest.raises(ValueError, match="Site"):
+        read_matching(path, "match", "Site", "PW Number")
+
+
+def test_read_matching_missing_planwork_col(tmp_path):
+    """read_matching must raise ValueError when planwork_col header is missing."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "match"
+    ws["A1"] = "Site"
+    path = tmp_path / "matching.xlsx"
+    wb.save(str(path))
+    wb.close()
+    with pytest.raises(ValueError, match="PW Number"):
+        read_matching(path, "match", "Site", "PW Number")

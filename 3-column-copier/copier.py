@@ -26,9 +26,12 @@ def read_matching(file_path, sheet_name, filename_col, planwork_col):
             headers[str(cell.value).strip().lower()] = cell.column
     fn_idx = headers.get(filename_col.lower())
     pw_idx = headers.get(planwork_col.lower())
-    if not fn_idx or not pw_idx:
+    if fn_idx is None:
         wb.close()
-        return {}
+        raise ValueError(f"Column '{filename_col}' not found in headers (row 1)")
+    if pw_idx is None:
+        wb.close()
+        raise ValueError(f"Column '{planwork_col}' not found in headers (row 1)")
     result = {}
     current_filename = None
     for row in ws.iter_rows(min_row=2):
