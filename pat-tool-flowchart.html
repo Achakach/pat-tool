@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PAT Tool Flow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&family=LXGW+WenKai+Screen&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #f4ede1;
+      font-family: 'Kalam', 'Patrick Hand', 'LXGW WenKai Screen', cursive;
+    }
+    #board {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      background:
+        radial-gradient(circle at 2px 2px, rgba(0,0,0,0.04) 1px, transparent 1px),
+        radial-gradient(circle at 2px 2px, rgba(0,0,0,0.04) 1px, transparent 1px),
+        #f4ede1;
+      background-size: 32px 37px, 32px 37px;
+      background-position: 0 0, 16px 18px;
+      transform-origin: top left;
+    }
+    .caption {
+      position: absolute;
+      top: 28px;
+      left: 42px;
+      font-family: sans-serif;
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #6b6258;
+    }
+    .note {
+      position: absolute;
+      width: 240px;
+      height: 180px;
+      padding: 16px 18px;
+      border-radius: 2px;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.12);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      cursor: default;
+      z-index: 2;
+    }
+    .note::before {
+      content: "";
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 22px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.55), rgba(255,255,255,0.35) 40%, rgba(255,255,255,0.55));
+      opacity: 0.75;
+      border-radius: 2px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .note:hover {
+      transform: rotate(0deg) scale(1.05);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.18);
+      z-index: 10;
+    }
+    .icon {
+      font-size: 32px;
+      line-height: 1;
+      margin-bottom: 8px;
+      margin-top: 4px;
+    }
+    .title {
+      font-size: 19px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 6px;
+      color: #1a1a1a;
+    }
+    .desc {
+      font-size: 13px;
+      line-height: 1.35;
+      color: #3a3a3a;
+    }
+    .yellow { background: #fcd34d; transform: rotate(-1.5deg); }
+    .peach { background: #fca5a5; transform: rotate(1.2deg); }
+    .mint { background: #a7f3d0; transform: rotate(-0.8deg); }
+    .sky { background: #a5b4fc; transform: rotate(1.8deg); }
+    svg.connections {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .cursor {
+      position: absolute;
+      z-index: 20;
+      pointer-events: none;
+      transform: rotate(-8deg);
+    }
+    .cursor svg {
+      filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.15));
+    }
+    .tag {
+      position: absolute;
+      left: 22px;
+      top: 18px;
+      background: #2a2a2a;
+      color: #fff;
+      font-family: sans-serif;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div id="board">
+    <div class="caption">FLOW · PAT TOOL · 2026</div>
+
+    <svg class="connections">
+      <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#2a2a2a"/>
+        </marker>
+      </defs>
+      <!-- matching -> template generator -->
+      <path d="M 360 230 Q 360 310 360 340" stroke="#2a2a2a" stroke-width="2.5" fill="none" stroke-linecap="round" marker-end="url(#arrow)"/>
+      <!-- matching -> column copier -->
+      <path d="M 420 230 Q 560 280 640 360" stroke="#2a2a2a" stroke-width="2.5" fill="none" stroke-linecap="round" marker-end="url(#arrow)"/>
+      <!-- matching -> png inserter -->
+      <path d="M 300 230 Q 180 360 280 680" stroke="#2a2a2a" stroke-width="2.5" fill="none" stroke-linecap="round" marker-end="url(#arrow)" stroke-dasharray="8 6"/>
+      <!-- extractor -> png inserter -->
+      <path d="M 360 520 Q 360 600 360 680" stroke="#2a2a2a" stroke-width="2.5" fill="none" stroke-linecap="round" marker-end="url(#arrow)"/>
+      <!-- template -> column copier -->
+      <path d="M 360 520 Q 560 520 640 520" stroke="#2a2a2a" stroke-width="2.5" fill="none" stroke-linecap="round" marker-end="url(#arrow)"/>
+      <!-- column copier -> cell editor -->
+      <path d="M 880 520 Q 1040 520 1120 520" stroke="#2a2a2a" stroke-width="2.5" fill="none" stroke-linecap="round" marker-end="url(#arrow)"/>
+      <!-- cell editor -> png inserter -->
+      <path d="M 1360 520 Q 1500 520 1520 600" stroke="#2a2a2a" stroke-width="2.5" fill="none" stroke-linecap="round" marker-end="url(#arrow)"/>
+      <!-- png inserter -> final output -->
+      <path d="M 1400 760 Q 1400 840 1400 880" stroke="#2a2a2a" stroke-width="2.5" fill="none" stroke-linecap="round" marker-end="url(#arrow)"/>
+    </svg>
+
+    <!-- matching.xlsx -->
+    <div class="note yellow" style="left: 240px; top: 80px;">
+      <div class="icon">📋</div>
+      <div class="title">matching.xlsx</div>
+      <div class="desc">Shared state: Site → PW Number. Blank Site inherits from above.</div>
+    </div>
+
+    <!-- 1-png-extractor -->
+    <div class="note peach" style="left: 240px; top: 380px;">
+      <div class="icon">🖼️</div>
+      <div class="title">1-PNG Extractor</div>
+      <div class="desc">Extract PNGs from source XLSX sheets named exist/new {site}.</div>
+    </div>
+
+    <!-- 2-template-generator -->
+    <div class="note mint" style="left: 240px; top: 680px;">
+      <div class="icon">📄</div>
+      <div class="title">2-Template Generator</div>
+      <div class="desc">Copy template.xlsx once per unique Site filename.</div>
+    </div>
+
+    <!-- 3-column-copier -->
+    <div class="note sky" style="left: 640px; top: 430px;">
+      <div class="icon">📑</div>
+      <div class="title">3-Column Copier</div>
+      <div class="desc">Build temp PW/IP columns, paste configured columns into target.</div>
+    </div>
+
+    <!-- 4-cell-editor -->
+    <div class="note yellow" style="left: 1120px; top: 430px;">
+      <div class="icon">✏️</div>
+      <div class="title">4-Cell Editor</div>
+      <div class="desc">Prefix-match label, replace the cell to the right.</div>
+    </div>
+
+    <!-- 5-png-inserter -->
+    <div class="note peach" style="left: 1280px; top: 700px;">
+      <div class="icon">🖼️</div>
+      <div class="title">5-PNG Inserter</div>
+      <div class="desc">Match PNGs to sheets, purge rows, insert labeled site images.</div>
+    </div>
+
+    <!-- final output -->
+    <div class="note mint" style="left: 1280px; top: 920px;">
+      <div class="icon">🎁</div>
+      <div class="title">Final Output</div>
+      <div class="desc">Edited XLSX with embedded PNGs in 5-png-inserter/out/.</div>
+    </div>
+
+    <!-- floating cursor near final output -->
+    <div class="cursor" style="left: 1500px; top: 940px;">
+      <svg width="42" height="46" viewBox="0 0 24 28" fill="none">
+        <path d="M4 2 L4 22 L9 17 L13 25 L16 23 L12 15 L20 15 Z" fill="#2a2a2a"/>
+      </svg>
+      <div class="tag">kacha</div>
+    </div>
+  </div>
+
+  <script>
+    const board = document.getElementById('board');
+    const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    board.style.transform = `scale(${scale})`;
+  </script>
+</body>
+</html>

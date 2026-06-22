@@ -112,3 +112,34 @@
 - Config survives roundtrip without corruption
 - All 31 unit/integration tests pass
 - No regressions in backward compatibility
+## F3 Manual QA — 2026-06-18 16:53
+
+### Test Execution Results
+
+| Test Group | Tests | Passed | Failed |
+|-----------|-------|--------|--------|
+| F3.1 Task 1 (TestDetectRowHeight) | 4 | 4 | 0 |
+| F3.2 Task 2+5 (TestPageBreakConfig) | 10 | 10 | 0 |
+| F3.3 Task 3+6 (overflow/headers/taller) | 3 | 3 | 0 |
+| F3.4 Task 4+7 (overflow_guard/gap_rows) | 4 | 4 | 0 |
+| **QA Subtotal** | **21** | **21** | **0** |
+| Full suite cross-task integration | 38 | 38 | 0 |
+
+### Edge Cases Verified (7/7)
+
+1. Empty worksheet → _detect_row_height = 15.0 ✓
+2. All rows explicit 20pt → returns 20.0 ✓
+3. Mixed heights → MODE=15 works ✓
+4. No explicit heights → fallback 15.0 ✓
+5. a4_page_rows config override still works ✓
+6. 20pt rows → calc_page_rows = 39 ✓
+7. Mixed mode → calc_page_rows = 52 (MODE=15) ✓
+
+### Cross-task Integration
+
+_detect_row_height → _calc_page_rows → insert_png chain verified via full 38-test suite.
+All edge cases covered: print title rows, auto page breaks, snap to boundary, 
+overflow guard, gap rows, taller than page, multi-sheet, disabled mode, 
+existing breaks cleared, full pipeline with headers.
+
+### Verdict: APPROVE

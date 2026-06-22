@@ -1,0 +1,15 @@
+{
+  "input_folder": "./input",
+  "output_folder": "./output",
+  "match_mode": "first",
+  "replacements": {
+    "name:": "kacha thanaphithak",
+    "date:": "1/1/1",
+    "PO:": "0654604",
+    "Project Name:": "final",
+    "Existing L1 site ID:": "bkk101",
+    "New L1 Site Name:": "bkk102",
+    "\u0e0a\u0e37\u0e48\u0e2d": "kacha thanaphithak",
+    "\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48": "1/1/1"
+  }
+}

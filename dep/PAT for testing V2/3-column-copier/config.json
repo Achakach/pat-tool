@@ -1,0 +1,65 @@
+{
+  "matching_file": "../matching.xlsx",
+  "matching_sheet": "match",
+  "filename_col": "Site",
+  "planwork_col": "PW Number",
+  "data_sheet": "cutsheet",
+  "target_sheet": "IP & Port Assignment",
+  "source_start_row": 3,
+  "paste_start_row": 3,
+  "columns": {
+    "PW": {
+      "type": "planwork",
+      "build_at": "Q",
+      "paste_to": "J"
+    },
+    "IP1": {
+      "type": "ip_lookup",
+      "lookup_col": "C",
+      "log_sheet": "Get Log Before&After",
+      "build_at": "R",
+      "paste_to": "E"
+    },
+    "IP2": {
+      "type": "ip_lookup",
+      "lookup_col": "G",
+      "log_sheet": "Get Log Before&After",
+      "build_at": "S",
+      "paste_to": "H"
+    },
+    "NE_NO1": {
+      "type": "copy",
+      "source_col": "C",
+      "paste_to": "D"
+    },
+    "PORT_NO1": {
+      "type": "copy",
+      "source_col": "D",
+      "paste_to": "F"
+    },
+    "L1": {
+      "type": "copy",
+      "source_col": "E",
+      "paste_to": "C"
+    },
+    "NE_NO2": {
+      "type": "copy",
+      "source_col": "G",
+      "paste_to": "G"
+    },
+    "PORT_NO2": {
+      "type": "copy",
+      "source_col": "H",
+      "paste_to": "I"
+    }
+  },
+  "source_folder": "./source",
+  "target_folder": "./target",
+  "output_folder": "./output",
+  "action": "copy",
+  "paste_mode": "append",
+  "page_break_enabled": false,
+  "a4_page_rows": null,
+  "print_title_rows": null,
+  "_comment_print": "Set page_break_enabled: true to enable A4 page break protection. Set print_title_rows to '1:3' to repeat header rows."
+}

@@ -1,0 +1,39 @@
+==============================================================
+F3: REAL MANUAL QA — FINAL VERDICT
+==============================================================
+Date: 2026-06-19
+Tool: 3-column-copier
+Python: 3.14.3
+openpyxl: 3.1.5
+
+==============================================================
+SCENARIO RESULTS
+==============================================================
+Test File                 Tests   Passed   Failed
+------------------------  ------  -------  ------
+test_images.py            10      10       0
+test_columns.py           20      20       0
+test_cli.py               3       3        0
+test_cleanup.py           4       4        0
+test_print_setup.py       9       9        0
+test_real_mapping.py      3       3        0
+------------------------  ------  -------  ------
+TOTAL                     53      53       0
+
+==============================================================
+INTEGRATION TEST
+==============================================================
+shift_image_anchors() anchor shift from row 10 (0-based=9) → row 15 (0-based=14)
+after insert_rows(3, 5): PASS
+
+==============================================================
+EDGE CASES TESTED
+==============================================================
+1. Empty _images (no crash):                     PASS
+2. Zero num_rows (no-op):                        PASS
+3. Negative num_rows (handled, no exception):    PASS
+
+==============================================================
+VERDICT: APPROVE
+==============================================================
+All 53 tests pass. Integration test passes. All edge cases pass.

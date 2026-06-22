@@ -1,0 +1,5 @@
+{
+  "input_folder": "./input",
+  "output_folder": "./output",
+  "noise_threshold": 5000
+}

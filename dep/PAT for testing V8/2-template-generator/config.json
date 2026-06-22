@@ -1,0 +1,7 @@
+{
+  "matching_file": "../matching.xlsx",
+  "matching_sheet": "match",
+  "filename_col": "Site",
+  "template": "./template.xlsx",
+  "output_folder": "./output"
+}
